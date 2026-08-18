@@ -1,0 +1,22 @@
+{
+  "name": "Clínica del Niño - Gestión Biomédica",
+  "short_name": "Biomédica CDN",
+  "description": "PWA para registro de mantenimientos biomédicos con base de datos IndexedDB y exportación anual Excel",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0052cc",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
