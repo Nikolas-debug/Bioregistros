@@ -9,25 +9,15 @@ import {
   Building2,
   CheckCircle2
 } from 'lucide-react';
-import { Equipment, HospitalService, MaintenanceStatus } from '../types';
+import { Equipment, ESTADOS_SUGERIDOS, SERVICIOS_SUGERIDOS } from '../types';
 
 interface NewEquipmentModalProps {
   onClose: () => void;
   onSaveEquipment: (equipment: Equipment) => Promise<void>;
 }
 
-const SERVICES: HospitalService[] = [
-  'UCI',
-  'UCI Neonatal',
-  'UCI Pediátrica',
-  'Urgencias',
-  'Quirófano',
-  'Hospitalización',
-  'Imágenes Diagnósticas',
-  'Laboratorio Clínico',
-  'Consulta Externa',
-  'Central de Esterilización'
-];
+/** Sugerencias, no lista cerrada. */
+const SERVICES = SERVICIOS_SUGERIDOS;
 
 export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({
   onClose,
@@ -38,10 +28,10 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({
   const [model, setModel] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [inventoryCode, setInventoryCode] = useState(`CDN-BIO-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`);
-  const [service, setService] = useState<HospitalService>('UCI');
+  const [service, setService] = useState('');
   const [specificLocation, setSpecificLocation] = useState('');
-  const [riskClass, setRiskClass] = useState<'I' | 'IIA' | 'IIB' | 'III'>('IIB');
-  const [status, setStatus] = useState<MaintenanceStatus>('Operativo');
+  const [riskClass, setRiskClass] = useState<string>('IIB');
+  const [status, setStatus] = useState('FUNCIONAL');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -169,7 +159,7 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({
               <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Servicio</label>
               <select
                 value={service}
-                onChange={(e) => setService(e.target.value as HospitalService)}
+                onChange={(e) => setService(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white"
               >
                 {SERVICES.map((s) => (
@@ -207,13 +197,12 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({
               <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Estado</label>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value as MaintenanceStatus)}
+                onChange={(e) => setStatus(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white"
               >
-                <option value="Operativo">Operativo</option>
-                <option value="En Espera de Repuestos">En Espera de Repuestos</option>
-                <option value="Fuera de Servicio">Fuera de Servicio</option>
-                <option value="Calibrado">Calibrado</option>
+                {ESTADOS_SUGERIDOS.map((e) => (
+                  <option key={e} value={e}>{e}</option>
+                ))}
               </select>
             </div>
           </div>

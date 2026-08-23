@@ -45,7 +45,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [name, setName] = useState(user.name);
   const [institution, setInstitution] = useState(user.institution);
   const [role, setRole] = useState(user.role);
-  const [professionalCard, setProfessionalCard] = useState(user.professionalCard || 'T.P. BIO-88942');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -56,8 +55,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onUpdateUser({
       name: name.trim(),
       institution: institution.trim(),
-      role: role.trim(),
-      professionalCard: professionalCard.trim()
+      role: role.trim()
     });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
@@ -203,15 +201,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
                 />
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 mb-1">Tarjeta Profesional</label>
-                <input
-                  type="text"
-                  value={professionalCard}
-                  onChange={(e) => setProfessionalCard(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono"
-                />
-              </div>
             </div>
 
             <button
@@ -222,7 +211,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </button>
           </form>
 
-          {/* Reset Demo Data & Logout */}
+          {/* Borrado total de datos locales y cierre de sesion */}
           <div className="pt-2 border-t border-slate-100 space-y-2">
             {!confirmReset ? (
               <button
@@ -231,12 +220,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="w-full py-2 text-slate-600 hover:text-slate-900 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-                <span>Restablecer Registros Demo</span>
+                <span>Borrar todos los datos de este dispositivo</span>
               </button>
             ) : (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2 animate-in fade-in">
                 <p className="text-[11px] text-amber-900 font-semibold text-center">
-                  ¿Restablecer IndexedDB con los registros clínicos originales?
+                  Se borrarán los registros y el inventario guardados aquí.
+                </p>
+                <p className="text-[11px] text-amber-800 text-center leading-relaxed">
+                  Lo que ya se sincronizó sigue a salvo en el servidor. Lo que
+                  esté pendiente de subir se pierde.
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -252,9 +245,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       await onResetData();
                       setConfirmReset(false);
                     }}
-                    className="py-1 bg-amber-600 text-white font-bold rounded-lg text-xs"
+                    className="py-1 bg-rose-600 text-white font-bold rounded-lg text-xs"
                   >
-                    Restablecer
+                    Sí, borrar
                   </button>
                 </div>
               </div>

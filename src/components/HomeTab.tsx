@@ -14,7 +14,14 @@ import {
   Building2,
   HardDrive
 } from 'lucide-react';
-import { MaintenanceRecord, Equipment, ActiveTab, UserProfile } from '../types';
+import {
+  MaintenanceRecord,
+  Equipment,
+  ActiveTab,
+  UserProfile,
+  grupoEstado,
+  etiquetaReporte,
+} from '../types';
 import { exportAnnualReportToExcel, exportMonthlyReportToExcel, exportMaintenanceRecordsToExcel } from '../utils/excelExport';
 
 interface HomeTabProps {
@@ -55,7 +62,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   };
 
   return (
-    <div className="pb-24 pt-4 px-4 max-w-md mx-auto space-y-5 animate-in fade-in duration-300">
+    <div className="pb-24 lg:pb-10 pt-4 px-4 max-w-md lg:max-w-none mx-auto space-y-5 animate-in fade-in duration-300">
       
       {/* Title & Greeting matching Image 7 */}
       <div>
@@ -141,7 +148,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
         <p className="text-xs text-blue-100/90 leading-relaxed">
           Descargue el reporte consolidado anual o mensual de todos los mantenimientos biomédicos para auditorías hospitalarias.
         </p>
-        <div className="grid grid-cols-2 gap-2 pt-1">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 pt-1">
           <button
             id="btn-quick-annual-excel"
             onClick={onOpenAnnualModal}
@@ -200,20 +207,25 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 >
                   <div className="col-span-5 font-mono font-medium text-slate-800 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
-                    <span>{item.equipmentId || item.id}</span>
+                    <span>{etiquetaReporte(item)}</span>
                   </div>
                   <div className="col-span-7 text-slate-700 flex items-center justify-between">
                     <span className="font-medium truncate pr-2">{item.equipment}</span>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-semibold shrink-0 ${
-                        item.finalStatus === 'Operativo' || item.finalStatus === 'Calibrado'
+                        grupoEstado(item.finalStatus) === 'funcional'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : item.finalStatus === 'En Espera de Repuestos'
+                          : grupoEstado(item.finalStatus) === 'espera'
                           ? 'bg-amber-50 text-amber-700 border border-amber-200'
                           : 'bg-rose-50 text-rose-700 border border-rose-200'
                       }`}
                     >
-                      {item.finalStatus === 'Operativo' ? 'Operativo' : item.finalStatus === 'En Espera de Repuestos' ? 'Repuestos' : 'Fuera Serv.'}
+                      {({
+                        funcional: 'Funcional',
+                        espera: 'Repuestos',
+                        fuera: 'Fuera serv.',
+                        'sin-dato': 'Sin estado',
+                      } as const)[grupoEstado(item.finalStatus)]}
                     </span>
                   </div>
                 </div>

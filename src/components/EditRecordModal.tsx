@@ -11,7 +11,11 @@ import {
   ShieldCheck,
   MoreHorizontal
 } from 'lucide-react';
-import { MaintenanceRecord, MaintenanceStatus, MaintenanceType, HospitalService } from '../types';
+import {
+  MaintenanceRecord,
+  ESTADOS_SUGERIDOS,
+  SERVICIOS_SUGERIDOS,
+} from '../types';
 
 interface EditRecordModalProps {
   record: MaintenanceRecord;
@@ -19,18 +23,8 @@ interface EditRecordModalProps {
   onSave: (updatedRecord: MaintenanceRecord) => Promise<void>;
 }
 
-const SERVICES: HospitalService[] = [
-  'UCI',
-  'UCI Neonatal',
-  'UCI Pediátrica',
-  'Urgencias',
-  'Quirófano',
-  'Hospitalización',
-  'Imágenes Diagnósticas',
-  'Laboratorio Clínico',
-  'Consulta Externa',
-  'Central de Esterilización'
-];
+/** Sugerencias, no lista cerrada: el seguimiento real trae servicios libres. */
+const SERVICES = SERVICIOS_SUGERIDOS;
 
 export const EditRecordModal: React.FC<EditRecordModalProps> = ({
   record,
@@ -41,12 +35,16 @@ export const EditRecordModal: React.FC<EditRecordModalProps> = ({
   const [brand, setBrand] = useState(record.brand);
   const [model, setModel] = useState(record.model);
   const [serialNumber, setSerialNumber] = useState(record.serialNumber);
-  const [service, setService] = useState<HospitalService>(record.service as HospitalService);
+  const [service, setService] = useState(record.service || '');
   const [specificLocation, setSpecificLocation] = useState(record.specificLocation);
   const [inventoryCode, setInventoryCode] = useState(record.inventoryCode);
   const [date, setDate] = useState(record.date);
-  const [finalStatus, setFinalStatus] = useState<MaintenanceStatus>(record.finalStatus);
-  const [maintenanceType, setMaintenanceType] = useState<MaintenanceType>(record.maintenanceType);
+  const [finalStatus, setFinalStatus] = useState(record.finalStatus || '');
+
+  // Tres casillas independientes, como en el seguimiento.
+  const [preventivo, setPreventivo] = useState(!!record.preventivo);
+  const [correctivo, setCorrectivo] = useState(!!record.correctivo);
+  const [otro, setOtro] = useState(!!record.otro);
   const [spareParts, setSpareParts] = useState(record.spareParts || '');
   const [failureComments, setFailureComments] = useState(record.failureComments || '');
   const [additionalObservations, setAdditionalObservations] = useState(record.additionalObservations || '');
@@ -67,8 +65,10 @@ export const EditRecordModal: React.FC<EditRecordModalProps> = ({
         specificLocation: specificLocation.trim(),
         inventoryCode: inventoryCode.trim(),
         date,
-        finalStatus,
-        maintenanceType,
+        finalStatus: finalStatus.trim(),
+        preventivo,
+        correctivo,
+        otro,
         spareParts: spareParts.trim(),
         failureComments: failureComments.trim(),
         additionalObservations: additionalObservations.trim(),
@@ -162,15 +162,18 @@ export const EditRecordModal: React.FC<EditRecordModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] font-bold text-slate-600 mb-1">Servicio</label>
-                <select
+                <input
+                  type="text"
+                  list="edit-lista-servicios"
                   value={service}
-                  onChange={(e) => setService(e.target.value as HospitalService)}
+                  onChange={(e) => setService(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"
-                >
+                />
+                <datalist id="edit-lista-servicios">
                   {SERVICES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
+                    <option key={s} value={s} />
                   ))}
-                </select>
+                </datalist>
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-slate-600 mb-1">Ubicación Específica</label>
@@ -204,35 +207,43 @@ export const EditRecordModal: React.FC<EditRecordModalProps> = ({
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-600 mb-1">Estado Final</label>
-                <select
+                <input
+                  type="text"
+                  list="edit-lista-estados"
                   value={finalStatus}
-                  onChange={(e) => setFinalStatus(e.target.value as MaintenanceStatus)}
+                  onChange={(e) => setFinalStatus(e.target.value)}
+                  placeholder="FUNCIONAL"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"
-                >
-                  <option value="Operativo">Operativo</option>
-                  <option value="En Espera de Repuestos">En Espera de Repuestos</option>
-                  <option value="Fuera de Servicio">Fuera de Servicio</option>
-                  <option value="Calibrado">Calibrado</option>
-                </select>
+                />
+                <datalist id="edit-lista-estados">
+                  {ESTADOS_SUGERIDOS.map((e) => (
+                    <option key={e} value={e} />
+                  ))}
+                </datalist>
               </div>
             </div>
 
             {/* Type */}
             <div>
-              <label className="block text-[10px] font-bold text-slate-600 mb-1">Tipo de Mantenimiento</label>
+              <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                Clase de Mantenimiento <span className="font-normal text-slate-400">(puede marcar varias)</span>
+              </label>
               <div className="flex gap-2">
-                {(['Preventivo', 'Correctivo', 'Otro'] as MaintenanceType[]).map((t) => (
+                {([
+                  ['Preventivo', preventivo, setPreventivo],
+                  ['Correctivo', correctivo, setCorrectivo],
+                  ['Otro', otro, setOtro],
+                ] as const).map(([etiqueta, activa, cambiar]) => (
                   <button
-                    key={t}
+                    key={etiqueta}
                     type="button"
-                    onClick={() => setMaintenanceType(t)}
+                    aria-pressed={activa}
+                    onClick={() => cambiar((v: boolean) => !v)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                      maintenanceType === t
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-700'
+                      activa ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'
                     }`}
                   >
-                    {t}
+                    {etiqueta}
                   </button>
                 ))}
               </div>

@@ -1,273 +1,67 @@
-import { MaintenanceRecord, Equipment, DatabaseStats } from '../types';
+/**
+ * Base de datos local del dispositivo.
+ *
+ * Cumple dos papeles: guardar lo que el técnico registra para poder
+ * consultarlo sin conexión, y mantener una bandeja de salida con lo que
+ * todavía no ha llegado a PostgreSQL.
+ *
+ * Sobre los identificadores: aquí ya no se inventan códigos. Cada registro
+ * lleva un UUID generado por el navegador, que es lo único que necesita el
+ * servidor para no duplicar nada. El número visible del seguimiento
+ * (`numeroReporte`) lo asigna PostgreSQL y vuelve en la respuesta de la
+ * sincronización.
+ */
+
+import {
+  MaintenanceRecord,
+  Equipment,
+  DatabaseStats,
+  ElementoCola,
+  grupoEstado,
+} from '../types';
 
 const DB_NAME = 'Bioregistros';
-const DB_VERSION = 1;
+
+/**
+ * Versión 4: los registros cambiaron de forma (uuid en vez de código
+ * inventado, tres casillas de clase, estado como texto libre). Los datos
+ * de las versiones anteriores eran de prueba y no se pueden migrar campo a
+ * campo, así que se limpian al subir de versión.
+ */
+const DB_VERSION = 4;
 
 const STORES = {
   RECORDS: 'maintenance_records',
   EQUIPMENTS: 'equipments',
-  SETTINGS: 'app_settings'
+  SETTINGS: 'app_settings',
+  /** Bandeja de salida: lo que todavía no ha llegado a PostgreSQL. */
+  QUEUE: 'cola_sincronizacion',
 };
 
-const INITIAL_RECORDS: MaintenanceRecord[] = [
-  {
-    id: 'MN-2023-1142',
-    equipmentId: 'EQ-2023-001',
-    equipment: 'Ventilator V60',
-    brand: 'Philips',
-    model: 'V60',
-    serialNumber: 'SN-89234',
-    service: 'UCI',
-    specificLocation: 'Cama 4',
-    inventoryCode: 'CDN-BIO-2023-089',
-    date: '2023-10-27',
-    time: '09:30',
-    finalStatus: 'Operativo',
-    maintenanceType: 'Preventivo',
-    spareParts: 'Filtro bacteriano HEPA, Celda galvánica de O2',
-    failureComments: 'Rutina preventiva semestral. Inspección de sellos y circuito neumático.',
-    additionalObservations: 'Equipo calibrado y dentro de tolerancias de flujo y presión según norma IEC 60601.',
-    technicianName: 'Luis Machado',
-    technicianCard: 'T.P. BIO-88942',
-    createdAt: new Date('2023-10-27T09:30:00').getTime(),
-    updatedAt: new Date('2023-10-27T09:30:00').getTime(),
-    syncedOffline: true
-  },
-  {
-    id: 'MN-2023-1141',
-    equipmentId: 'EQ-2023-002',
-    equipment: 'MRI Optima 450w',
-    brand: 'GE Healthcare',
-    model: 'Optima 450w 1.5T',
-    serialNumber: 'SN-78412',
-    service: 'Imágenes Diagnósticas',
-    specificLocation: 'Sala Resonancia 1',
-    inventoryCode: 'CDN-BIO-2021-012',
-    date: '2023-10-26',
-    time: '14:15',
-    finalStatus: 'En Espera de Repuestos',
-    maintenanceType: 'Correctivo',
-    spareParts: 'Cold Head cryocooler compressor adsorber',
-    failureComments: 'Alarma de nivel de helio y compresor de enfriamiento con alta vibración en ciclo.',
-    additionalObservations: 'Se solicitó reemplazo urgente a soporte de fábrica GE. Mantener monitorización criogénica.',
-    technicianName: 'Luis Machado',
-    technicianCard: 'T.P. BIO-88942',
-    createdAt: new Date('2023-10-26T14:15:00').getTime(),
-    updatedAt: new Date('2023-10-26T14:15:00').getTime(),
-    syncedOffline: true
-  },
-  {
-    id: 'MN-2023-1140',
-    equipmentId: 'EQ-2023-081',
-    equipment: 'Desfibrilador',
-    brand: 'Zoll',
-    model: 'R Series ALS',
-    serialNumber: 'SN-44129',
-    service: 'Urgencias',
-    specificLocation: 'Carro de Paro Box 1',
-    inventoryCode: 'CDN-BIO-2023-081',
-    date: '2023-10-24',
-    time: '11:00',
-    finalStatus: 'Operativo',
-    maintenanceType: 'Preventivo',
-    spareParts: 'Electrodos multifunción pediátricos, Batería de Litio SurePower',
-    failureComments: 'Prueba de descarga de 50J a 200J con analizador Fluke Impulse 7000DP exitosa.',
-    additionalObservations: 'Sincronismo cardioversión probado. Tiempo de carga óptimo (< 5 seg a 200J).',
-    technicianName: 'Luis Machado',
-    technicianCard: 'T.P. BIO-88942',
-    createdAt: new Date('2023-10-24T11:00:00').getTime(),
-    updatedAt: new Date('2023-10-24T11:00:00').getTime(),
-    syncedOffline: true
-  },
-  {
-    id: 'MN-2023-1139',
-    equipmentId: 'EQ-2023-112',
-    equipment: 'Monitor de Signos Vitales',
-    brand: 'Mindray',
-    model: 'BeneVision N17',
-    serialNumber: 'SN-91024',
-    service: 'UCI Pediátrica',
-    specificLocation: 'Cama 2',
-    inventoryCode: 'CDN-BIO-2023-112',
-    date: '2023-10-20',
-    time: '16:40',
-    finalStatus: 'Operativo',
-    maintenanceType: 'Preventivo',
-    spareParts: 'Manguera NIBP neonatal, Sensor SpO2 de clip blando',
-    failureComments: 'Alineación de módulos ECG, PNI, SpO2 y Temperatura.',
-    additionalObservations: 'Se ajustó hermeticidad de válvula neumática de presión arterial.',
-    technicianName: 'Luis Machado',
-    technicianCard: 'T.P. BIO-88942',
-    createdAt: new Date('2023-10-20T16:40:00').getTime(),
-    updatedAt: new Date('2023-10-20T16:40:00').getTime(),
-    syncedOffline: true
-  },
-  {
-    id: 'MN-2023-1138',
-    equipmentId: 'EQ-2023-045',
-    equipment: 'Bomba de Infusión',
-    brand: 'Fresenius Kabi',
-    model: 'Volumat MC Agilia',
-    serialNumber: 'SN-33981',
-    service: 'Hospitalización',
-    specificLocation: 'Piso 3 Ala Norte',
-    inventoryCode: 'CDN-BIO-2023-045',
-    date: '2023-10-18',
-    time: '10:15',
-    finalStatus: 'Operativo',
-    maintenanceType: 'Preventivo',
-    spareParts: 'Sensor de oclusión peristáltico',
-    failureComments: 'Calibración de caudal con balanza analítica y sistema de presión de infusión.',
-    additionalObservations: 'Error de flujo menor al 1.2% (rango aceptable < 3%).',
-    technicianName: 'Luis Machado',
-    technicianCard: 'T.P. BIO-88942',
-    createdAt: new Date('2023-10-18T10:15:00').getTime(),
-    updatedAt: new Date('2023-10-18T10:15:00').getTime(),
-    syncedOffline: true
-  },
-  {
-    id: 'MN-2023-1137',
-    equipmentId: 'EQ-2023-055',
-    equipment: 'Incubadora Neonatal',
-    brand: 'Dräger',
-    model: 'Isolette C2000',
-    serialNumber: 'SN-66710',
-    service: 'UCI Neonatal',
-    specificLocation: 'Puesto Neo 5',
-    inventoryCode: 'CDN-BIO-2023-055',
-    date: '2023-10-12',
-    time: '15:20',
-    finalStatus: 'Calibrado',
-    maintenanceType: 'Preventivo',
-    spareParts: 'Filtro de aire bacteriano, Sensor dual de temperatura piel',
-    failureComments: 'Verificación de sensor de humedad servo-controlada y balance térmico con termómetros patrón.',
-    additionalObservations: 'Alarma de hipertermia y corte automático de emergencia testeados con normalidad.',
-    technicianName: 'Luis Machado',
-    technicianCard: 'T.P. BIO-88942',
-    createdAt: new Date('2023-10-12T15:20:00').getTime(),
-    updatedAt: new Date('2023-10-12T15:20:00').getTime(),
-    syncedOffline: true
-  },
-  {
-    id: 'MN-2023-1136',
-    equipmentId: 'EQ-2023-078',
-    equipment: 'Máquina de Anestesia',
-    brand: 'Dräger',
-    model: 'Perseus A500',
-    serialNumber: 'SN-11092',
-    service: 'Quirófano',
-    specificLocation: 'Quirófano Pediátrico 2',
-    inventoryCode: 'CDN-BIO-2023-078',
-    date: '2023-09-28',
-    time: '08:00',
-    finalStatus: 'Operativo',
-    maintenanceType: 'Preventivo',
-    spareParts: 'Vaporizador Sevoflurano junta de sellado, Trampa de agua WaterLock 2',
-    failureComments: 'Prueba de fuga automática de baja y alta presión superada (0 ml/min fuga).',
-    additionalObservations: 'Ventilador pistón turbo calibrado en modos PCV y VCV neonatal.',
-    technicianName: 'Luis Machado',
-    technicianCard: 'T.P. BIO-88942',
-    createdAt: new Date('2023-09-28T08:00:00').getTime(),
-    updatedAt: new Date('2023-09-28T08:00:00').getTime(),
-    syncedOffline: true
-  },
-  {
-    id: 'MN-2023-1135',
-    equipmentId: 'EQ-2023-099',
-    equipment: 'Electrocardiógrafo',
-    brand: 'Philips',
-    model: 'PageWriter TC50',
-    serialNumber: 'SN-40291',
-    service: 'Consulta Externa',
-    specificLocation: 'Consultorio Cardiología 4',
-    inventoryCode: 'CDN-BIO-2023-099',
-    date: '2023-08-15',
-    time: '11:45',
-    finalStatus: 'Operativo',
-    maintenanceType: 'Preventivo',
-    spareParts: 'Cable paciente 10 derivaciones tipo banana',
-    failureComments: 'Limpieza de cabezal térmico de impresión y verificación de filtros de 50Hz/60Hz.',
-    additionalObservations: 'Simulación con generador de arritmias Fluke PS420 validada.',
-    technicianName: 'Luis Machado',
-    technicianCard: 'T.P. BIO-88942',
-    createdAt: new Date('2023-08-15T11:45:00').getTime(),
-    updatedAt: new Date('2023-08-15T11:45:00').getTime(),
-    syncedOffline: true
+/** UUID del navegador, con respaldo para contextos sin crypto.randomUUID. */
+export function nuevoUuid(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
   }
-];
 
-const INITIAL_EQUIPMENTS: Equipment[] = [
-  {
-    id: 'EQ-2023-081',
-    name: 'Desfibrilador',
-    brand: 'Zoll',
-    model: 'R Series ALS',
-    serialNumber: 'SN-44129',
-    inventoryCode: 'CDN-BIO-2023-081',
-    service: 'Urgencias',
-    specificLocation: 'Carro de Paro Box 1',
-    status: 'Operativo',
-    riskClass: 'III',
-    lastMaintenanceDate: '2023-10-24',
-    frequencyMonths: 6
-  },
-  {
-    id: 'EQ-2023-112',
-    name: 'Monitor de Signos Vitales',
-    brand: 'Mindray',
-    model: 'BeneVision N17',
-    serialNumber: 'SN-91024',
-    inventoryCode: 'CDN-BIO-2023-112',
-    service: 'UCI Pediátrica',
-    specificLocation: 'Cama 2',
-    status: 'Operativo',
-    riskClass: 'IIB',
-    lastMaintenanceDate: '2023-10-20',
-    frequencyMonths: 6
-  },
-  {
-    id: 'EQ-2023-045',
-    name: 'Bomba de Infusión',
-    brand: 'Fresenius Kabi',
-    model: 'Volumat MC Agilia',
-    serialNumber: 'SN-33981',
-    inventoryCode: 'CDN-BIO-2023-045',
-    service: 'Hospitalización',
-    specificLocation: 'Piso 3 Ala Norte',
-    status: 'Operativo',
-    riskClass: 'IIB',
-    lastMaintenanceDate: '2023-10-18',
-    frequencyMonths: 6
-  },
-  {
-    id: 'EQ-2023-001',
-    name: 'Ventilator V60',
-    brand: 'Philips',
-    model: 'V60',
-    serialNumber: 'SN-89234',
-    inventoryCode: 'CDN-BIO-2023-089',
-    service: 'UCI',
-    specificLocation: 'Cama 4',
-    status: 'Operativo',
-    riskClass: 'III',
-    lastMaintenanceDate: '2023-10-27',
-    frequencyMonths: 6
-  },
-  {
-    id: 'EQ-2023-002',
-    name: 'MRI Optima 450w',
-    brand: 'GE Healthcare',
-    model: 'Optima 450w 1.5T',
-    serialNumber: 'SN-78412',
-    inventoryCode: 'CDN-BIO-2021-012',
-    service: 'Imágenes Diagnósticas',
-    specificLocation: 'Sala Resonancia 1',
-    status: 'En Espera de Repuestos',
-    riskClass: 'III',
-    lastMaintenanceDate: '2023-10-26',
-    frequencyMonths: 3
-  }
-];
+  // Respaldo para navegadores viejos o páginas servidas sin HTTPS.
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/** El equipo se identifica por su serie; si no la tiene, por inventario. */
+export function claveEquipo(serie?: string, inventario?: string): string {
+  const s = (serie ?? '').trim();
+  if (s) return `S:${s.toUpperCase()}`;
+
+  const i = (inventario ?? '').trim();
+  if (i) return `I:${i.toUpperCase()}`;
+
+  return `X:${nuevoUuid()}`;
+}
 
 class IndexedDBManager {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -280,81 +74,77 @@ class IndexedDBManager {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
+        const anterior = event.oldVersion;
 
-        // Store: Maintenance Records
+        // Al pasar de una versión previa a la 4 se descartan los almacenes
+        // con la forma antigua. Nunca se pierde trabajo real: en la versión
+        // 4 no había todavía datos de la clínica.
+        if (anterior > 0 && anterior < 4) {
+          [STORES.RECORDS, STORES.EQUIPMENTS, STORES.QUEUE].forEach((nombre) => {
+            if (db.objectStoreNames.contains(nombre)) {
+              db.deleteObjectStore(nombre);
+            }
+          });
+        }
+
         if (!db.objectStoreNames.contains(STORES.RECORDS)) {
-          const recordStore = db.createObjectStore(STORES.RECORDS, { keyPath: 'id' });
-          recordStore.createIndex('date', 'date', { unique: false });
-          recordStore.createIndex('equipment', 'equipment', { unique: false });
-          recordStore.createIndex('brand', 'brand', { unique: false });
-          recordStore.createIndex('service', 'service', { unique: false });
-          recordStore.createIndex('finalStatus', 'finalStatus', { unique: false });
-          recordStore.createIndex('maintenanceType', 'maintenanceType', { unique: false });
-          recordStore.createIndex('createdAt', 'createdAt', { unique: false });
+          const registros = db.createObjectStore(STORES.RECORDS, { keyPath: 'id' });
+          registros.createIndex('date', 'date', { unique: false });
+          registros.createIndex('numeroReporte', 'numeroReporte', { unique: false });
+          registros.createIndex('equipment', 'equipment', { unique: false });
+          registros.createIndex('service', 'service', { unique: false });
+          registros.createIndex('createdAt', 'createdAt', { unique: false });
+          registros.createIndex('syncState', 'syncState', { unique: false });
         }
 
-        // Store: Equipments Inventory
         if (!db.objectStoreNames.contains(STORES.EQUIPMENTS)) {
-          const equipStore = db.createObjectStore(STORES.EQUIPMENTS, { keyPath: 'id' });
-          equipStore.createIndex('serialNumber', 'serialNumber', { unique: false });
-          equipStore.createIndex('inventoryCode', 'inventoryCode', { unique: false });
-          equipStore.createIndex('service', 'service', { unique: false });
+          const equipos = db.createObjectStore(STORES.EQUIPMENTS, { keyPath: 'id' });
+          equipos.createIndex('serialNumber', 'serialNumber', { unique: false });
+          equipos.createIndex('inventoryCode', 'inventoryCode', { unique: false });
+          equipos.createIndex('service', 'service', { unique: false });
         }
 
-        // Store: Settings
         if (!db.objectStoreNames.contains(STORES.SETTINGS)) {
           db.createObjectStore(STORES.SETTINGS, { keyPath: 'key' });
         }
+
+        if (!db.objectStoreNames.contains(STORES.QUEUE)) {
+          const cola = db.createObjectStore(STORES.QUEUE, { keyPath: 'id' });
+          cola.createIndex('creadoEn', 'creadoEn', { unique: false });
+          cola.createIndex('intentos', 'intentos', { unique: false });
+        }
       };
 
-      request.onsuccess = async (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        // Check if database needs seeding
-        await this.seedInitialDataIfNeeded(db);
-        resolve(db);
-      };
-
-      request.onerror = () => {
-        reject(request.error);
-      };
+      request.onsuccess = (event) => resolve((event.target as IDBOpenDBRequest).result);
+      request.onerror = () => reject(request.error);
     });
 
     return this.dbPromise;
   }
 
-  private async seedInitialDataIfNeeded(db: IDBDatabase): Promise<void> {
-    return new Promise((resolve) => {
-      const tx = db.transaction([STORES.RECORDS, STORES.EQUIPMENTS], 'readwrite');
-      const recordStore = tx.objectStore(STORES.RECORDS);
-      const countReq = recordStore.count();
+  /* ================================================================== */
+  /*  Registros                                                          */
+  /* ================================================================== */
 
-      countReq.onsuccess = () => {
-        if (countReq.result === 0) {
-          // Populate initial records
-          INITIAL_RECORDS.forEach((rec) => recordStore.put(rec));
-          const equipStore = tx.objectStore(STORES.EQUIPMENTS);
-          INITIAL_EQUIPMENTS.forEach((eq) => equipStore.put(eq));
-        }
-      };
-
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve(); // continue gracefully
-    });
-  }
-
-  // --- Records Operations ---
   async getAllRecords(): Promise<MaintenanceRecord[]> {
     const db = await this.openDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORES.RECORDS, 'readonly');
-      const store = tx.objectStore(STORES.RECORDS);
-      const request = store.getAll();
+      const request = db
+        .transaction(STORES.RECORDS, 'readonly')
+        .objectStore(STORES.RECORDS)
+        .getAll();
 
       request.onsuccess = () => {
-        const records = (request.result as MaintenanceRecord[]).sort(
-          (a, b) => (b.createdAt || 0) - (a.createdAt || 0)
-        );
-        resolve(records);
+        const registros = (request.result as MaintenanceRecord[]).sort((a, b) => {
+          // Primero por número de reporte, que es el orden del seguimiento.
+          // Los que aún no tienen número (recién registrados sin conexión)
+          // van arriba, para que el técnico los vea de una.
+          if (a.numeroReporte && b.numeroReporte) return b.numeroReporte - a.numeroReporte;
+          if (a.numeroReporte) return 1;
+          if (b.numeroReporte) return -1;
+          return (b.createdAt || 0) - (a.createdAt || 0);
+        });
+        resolve(registros);
       };
       request.onerror = () => reject(request.error);
     });
@@ -363,211 +153,492 @@ class IndexedDBManager {
   async getRecordById(id: string): Promise<MaintenanceRecord | null> {
     const db = await this.openDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORES.RECORDS, 'readonly');
-      const store = tx.objectStore(STORES.RECORDS);
-      const request = store.get(id);
+      const request = db
+        .transaction(STORES.RECORDS, 'readonly')
+        .objectStore(STORES.RECORDS)
+        .get(id);
 
       request.onsuccess = () => resolve(request.result || null);
       request.onerror = () => reject(request.error);
     });
   }
 
-  async addRecord(record: Omit<MaintenanceRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<MaintenanceRecord> {
+  /**
+   * Alta de un mantenimiento.
+   * Se guarda y se encola en la MISMA transacción: o quedan las dos cosas,
+   * o no queda ninguna.
+   */
+  async addRecord(
+    datos: Omit<MaintenanceRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ): Promise<MaintenanceRecord> {
     const db = await this.openDB();
-    const now = Date.now();
-    const year = new Date().getFullYear();
-    
-    // Generate sequential or random realistic ID like #MN-2023-XXXX
-    const generatedId = record.id || `#MN-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const ahora = Date.now();
 
-    const fullRecord: MaintenanceRecord = {
-      ...record,
-      id: generatedId,
-      createdAt: now,
-      updatedAt: now,
-      syncedOffline: true
+    const registro: MaintenanceRecord = {
+      ...datos,
+      id: datos.id || nuevoUuid(),
+      createdAt: ahora,
+      updatedAt: ahora,
+      syncState: 'pending',
+      origen: datos.origen || 'app',
     };
 
     return new Promise((resolve, reject) => {
-      const tx = db.transaction([STORES.RECORDS, STORES.EQUIPMENTS], 'readwrite');
-      const store = tx.objectStore(STORES.RECORDS);
-      const request = store.put(fullRecord);
+      const tx = db.transaction(
+        [STORES.RECORDS, STORES.EQUIPMENTS, STORES.QUEUE],
+        'readwrite',
+      );
 
-      // Also ensure equipment is recorded/updated
-      const equipStore = tx.objectStore(STORES.EQUIPMENTS);
-      const eqId = record.equipmentId || `EQ-${year}-${Math.floor(100 + Math.random() * 900)}`;
-      
-      const equipObj: Equipment = {
-        id: eqId,
-        name: record.equipment,
-        brand: record.brand,
-        model: record.model,
-        serialNumber: record.serialNumber,
-        inventoryCode: record.inventoryCode,
-        service: record.service,
-        specificLocation: record.specificLocation,
-        status: record.finalStatus,
-        riskClass: 'IIB',
-        lastMaintenanceDate: record.date,
-        frequencyMonths: 6
-      };
-      equipStore.put(equipObj);
+      tx.objectStore(STORES.RECORDS).put(registro);
+      tx.objectStore(STORES.EQUIPMENTS).put(this.equipoDesde(registro));
+      tx.objectStore(STORES.QUEUE).put(this.elementoCola(registro, 'crear', ahora));
 
-      tx.oncomplete = () => resolve(fullRecord);
+      tx.oncomplete = () => resolve(registro);
       tx.onerror = () => reject(tx.error);
     });
   }
 
-  async updateRecord(record: MaintenanceRecord): Promise<MaintenanceRecord> {
+  async updateRecord(registro: MaintenanceRecord): Promise<MaintenanceRecord> {
     const db = await this.openDB();
-    const updatedRecord: MaintenanceRecord = {
-      ...record,
-      updatedAt: Date.now()
+    const ahora = Date.now();
+
+    const actualizado: MaintenanceRecord = {
+      ...registro,
+      updatedAt: ahora,
+      syncState: 'pending',
     };
 
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORES.RECORDS, 'readwrite');
-      const store = tx.objectStore(STORES.RECORDS);
-      const request = store.put(updatedRecord);
+      const tx = db.transaction([STORES.RECORDS, STORES.QUEUE], 'readwrite');
 
-      request.onsuccess = () => resolve(updatedRecord);
-      request.onerror = () => reject(request.error);
+      tx.objectStore(STORES.RECORDS).put(actualizado);
+      // Reenviar el mismo uuid actualiza en PostgreSQL, no duplica.
+      tx.objectStore(STORES.QUEUE).put(this.elementoCola(actualizado, 'actualizar', ahora));
+
+      tx.oncomplete = () => resolve(actualizado);
+      tx.onerror = () => reject(tx.error);
     });
   }
 
   async deleteRecord(id: string): Promise<boolean> {
     const db = await this.openDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORES.RECORDS, 'readwrite');
-      const store = tx.objectStore(STORES.RECORDS);
-      const request = store.delete(id);
+      const tx = db.transaction([STORES.RECORDS, STORES.QUEUE], 'readwrite');
+      tx.objectStore(STORES.RECORDS).delete(id);
+      tx.objectStore(STORES.QUEUE).delete(id);
 
-      request.onsuccess = () => resolve(true);
-      request.onerror = () => reject(request.error);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
     });
   }
 
-  // --- Equipment Operations ---
+  /**
+   * Alta masiva desde un seguimiento en Excel.
+   * Todas las filas entran en una sola transacción.
+   */
+  async agregarRegistrosEnLote(
+    registros: MaintenanceRecord[],
+  ): Promise<{ guardados: number }> {
+    const db = await this.openDB();
+    const ahora = Date.now();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(
+        [STORES.RECORDS, STORES.EQUIPMENTS, STORES.QUEUE],
+        'readwrite',
+      );
+
+      const almacenRegistros = tx.objectStore(STORES.RECORDS);
+      const almacenEquipos = tx.objectStore(STORES.EQUIPMENTS);
+      const cola = tx.objectStore(STORES.QUEUE);
+
+      registros.forEach((r) => {
+        const completo: MaintenanceRecord = {
+          ...r,
+          id: r.id || nuevoUuid(),
+          createdAt: r.createdAt || ahora,
+          updatedAt: ahora,
+          syncState: 'pending',
+          origen: 'excel',
+        };
+
+        almacenRegistros.put(completo);
+        almacenEquipos.put(this.equipoDesde(completo));
+        cola.put(this.elementoCola(completo, 'crear', ahora));
+      });
+
+      tx.oncomplete = () => resolve({ guardados: registros.length });
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /* ================================================================== */
+  /*  Inventario                                                         */
+  /* ================================================================== */
+
   async getAllEquipments(): Promise<Equipment[]> {
     const db = await this.openDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORES.EQUIPMENTS, 'readonly');
-      const store = tx.objectStore(STORES.EQUIPMENTS);
-      const request = store.getAll();
+      const request = db
+        .transaction(STORES.EQUIPMENTS, 'readonly')
+        .objectStore(STORES.EQUIPMENTS)
+        .getAll();
 
       request.onsuccess = () => resolve(request.result || []);
       request.onerror = () => reject(request.error);
     });
   }
 
-  async addEquipment(equipment: Equipment): Promise<Equipment> {
+  async addEquipment(equipo: Equipment): Promise<Equipment> {
     const db = await this.openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORES.EQUIPMENTS, 'readwrite');
-      const store = tx.objectStore(STORES.EQUIPMENTS);
-      const request = store.put(equipment);
+      tx.objectStore(STORES.EQUIPMENTS).put({
+        ...equipo,
+        id: equipo.id || claveEquipo(equipo.serialNumber, equipo.inventoryCode),
+      });
 
-      request.onsuccess = () => resolve(equipment);
+      tx.oncomplete = () => resolve(equipo);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /* ================================================================== */
+  /*  Cola de sincronización                                             */
+  /* ================================================================== */
+
+  async obtenerCola(limite = 500): Promise<ElementoCola[]> {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const request = db
+        .transaction(STORES.QUEUE, 'readonly')
+        .objectStore(STORES.QUEUE)
+        .getAll();
+
+      request.onsuccess = () => {
+        const cola = (request.result as ElementoCola[])
+          .sort((a, b) => (a.creadoEn || 0) - (b.creadoEn || 0))
+          .slice(0, limite);
+        resolve(cola);
+      };
       request.onerror = () => reject(request.error);
     });
   }
 
-  // --- Stats and Analytics ---
-  async getDatabaseStats(): Promise<DatabaseStats> {
-    const records = await this.getAllRecords();
-    const equipments = await this.getAllEquipments();
-
-    let preventive = 0;
-    let corrective = 0;
-    let other = 0;
-    let operational = 0;
-    let pendingParts = 0;
-    let outOfService = 0;
-
-    records.forEach((r) => {
-      if (r.maintenanceType === 'Preventivo') preventive++;
-      else if (r.maintenanceType === 'Correctivo') corrective++;
-      else other++;
-
-      if (r.finalStatus === 'Operativo' || r.finalStatus === 'Calibrado') operational++;
-      else if (r.finalStatus === 'En Espera de Repuestos') pendingParts++;
-      else if (r.finalStatus === 'Fuera de Servicio') outOfService++;
-    });
-
-    return {
-      totalRecords: records.length,
-      preventiveCount: preventive,
-      correctiveCount: corrective,
-      otherCount: other,
-      operationalCount: operational,
-      pendingPartsCount: pendingParts,
-      outOfServiceCount: outOfService,
-      totalEquipments: equipments.length,
-      lastSyncTimestamp: Date.now()
-    };
-  }
-
-  // --- Backup & Restore ---
-  async exportBackupJSON(): Promise<string> {
-    const records = await this.getAllRecords();
-    const equipments = await this.getAllEquipments();
-    const backup = {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      institution: 'Clínica del Niño',
-      records,
-      equipments
-    };
-    return JSON.stringify(backup, null, 2);
-  }
-
-  async importBackupJSON(jsonString: string): Promise<{ recordsImported: number; equipmentsImported: number }> {
-    const data = JSON.parse(jsonString);
+  async contarPendientes(): Promise<number> {
     const db = await this.openDB();
-
     return new Promise((resolve, reject) => {
-      const tx = db.transaction([STORES.RECORDS, STORES.EQUIPMENTS], 'readwrite');
-      const recordStore = tx.objectStore(STORES.RECORDS);
-      const equipStore = tx.objectStore(STORES.EQUIPMENTS);
+      const request = db
+        .transaction(STORES.QUEUE, 'readonly')
+        .objectStore(STORES.QUEUE)
+        .count();
 
-      let rCount = 0;
-      let eCount = 0;
-
-      if (Array.isArray(data.records)) {
-        data.records.forEach((rec: MaintenanceRecord) => {
-          recordStore.put(rec);
-          rCount++;
-        });
-      }
-
-      if (Array.isArray(data.equipments)) {
-        data.equipments.forEach((eq: Equipment) => {
-          equipStore.put(eq);
-          eCount++;
-        });
-      }
-
-      tx.oncomplete = () => resolve({ recordsImported: rCount, equipmentsImported: eCount });
-      tx.onerror = () => reject(tx.error);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
     });
   }
 
-  async resetToDemoData(): Promise<void> {
+  /**
+   * El servidor confirmó estos registros: salen de la cola.
+   *
+   * Además guarda el número de reporte que asignó PostgreSQL, que es el
+   * dato que la clínica realmente usa.
+   */
+  async confirmarSincronizados(
+    confirmaciones: {
+      uuid: string;
+      id?: number | null;
+      numero_reporte?: number | null;
+    }[],
+    borrarDelHistorial = false,
+  ): Promise<void> {
+    if (confirmaciones.length === 0) return;
     const db = await this.openDB();
+
     return new Promise((resolve, reject) => {
-      const tx = db.transaction([STORES.RECORDS, STORES.EQUIPMENTS], 'readwrite');
-      const recordStore = tx.objectStore(STORES.RECORDS);
-      const equipStore = tx.objectStore(STORES.EQUIPMENTS);
+      const tx = db.transaction([STORES.QUEUE, STORES.RECORDS], 'readwrite');
+      const cola = tx.objectStore(STORES.QUEUE);
+      const registros = tx.objectStore(STORES.RECORDS);
 
-      recordStore.clear();
-      equipStore.clear();
+      confirmaciones.forEach(({ uuid, id, numero_reporte }) => {
+        cola.delete(uuid);
 
-      INITIAL_RECORDS.forEach((rec) => recordStore.put(rec));
-      INITIAL_EQUIPMENTS.forEach((eq) => equipStore.put(eq));
+        if (borrarDelHistorial) {
+          registros.delete(uuid);
+          return;
+        }
+
+        const lectura = registros.get(uuid);
+        lectura.onsuccess = () => {
+          const registro = lectura.result as MaintenanceRecord | undefined;
+          if (registro) {
+            registros.put({
+              ...registro,
+              idServidor: id ?? registro.idServidor,
+              numeroReporte: numero_reporte ?? registro.numeroReporte,
+              syncState: 'synced',
+              syncedAt: Date.now(),
+              syncError: undefined,
+            });
+          }
+        };
+      });
 
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+  }
+
+  async marcarFallidos(fallos: { id: string; error: string }[]): Promise<void> {
+    if (fallos.length === 0) return;
+    const db = await this.openDB();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([STORES.QUEUE, STORES.RECORDS], 'readwrite');
+      const cola = tx.objectStore(STORES.QUEUE);
+      const registros = tx.objectStore(STORES.RECORDS);
+
+      fallos.forEach(({ id, error }) => {
+        const lectura = cola.get(id);
+        lectura.onsuccess = () => {
+          const item = lectura.result as ElementoCola | undefined;
+          if (item) {
+            cola.put({
+              ...item,
+              intentos: (item.intentos || 0) + 1,
+              ultimoError: error,
+              ultimoIntento: Date.now(),
+            });
+          }
+        };
+
+        const lecturaRegistro = registros.get(id);
+        lecturaRegistro.onsuccess = () => {
+          const registro = lecturaRegistro.result as MaintenanceRecord | undefined;
+          if (registro) {
+            registros.put({ ...registro, syncState: 'error', syncError: error });
+          }
+        };
+      });
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /** Pone en cero los contadores, para el botón "Sincronizar ahora". */
+  async reiniciarIntentos(): Promise<void> {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORES.QUEUE, 'readwrite');
+      const cola = tx.objectStore(STORES.QUEUE);
+      const lectura = cola.getAll();
+
+      lectura.onsuccess = () => {
+        (lectura.result as ElementoCola[]).forEach((item) => {
+          if ((item.intentos || 0) > 0) {
+            cola.put({ ...item, intentos: 0, ultimoIntento: 0 });
+          }
+        });
+      };
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /* ================================================================== */
+  /*  Estadísticas, preferencias y respaldos                             */
+  /* ================================================================== */
+
+  async getDatabaseStats(): Promise<DatabaseStats> {
+    const registros = await this.getAllRecords();
+    const equipos = await this.getAllEquipments();
+
+    let preventivos = 0;
+    let correctivos = 0;
+    let otros = 0;
+    let funcionales = 0;
+    let esperando = 0;
+    let fuera = 0;
+    let ultimoReporte = 0;
+
+    registros.forEach((r) => {
+      if (r.preventivo) preventivos++;
+      if (r.correctivo) correctivos++;
+      if (r.otro) otros++;
+
+      switch (grupoEstado(r.finalStatus)) {
+        case 'funcional': funcionales++; break;
+        case 'espera':    esperando++;   break;
+        case 'fuera':     fuera++;       break;
+      }
+
+      if (r.numeroReporte && r.numeroReporte > ultimoReporte) {
+        ultimoReporte = r.numeroReporte;
+      }
+    });
+
+    return {
+      totalRecords: registros.length,
+      preventiveCount: preventivos,
+      correctiveCount: correctivos,
+      otherCount: otros,
+      operationalCount: funcionales,
+      pendingPartsCount: esperando,
+      outOfServiceCount: fuera,
+      totalEquipments: equipos.length,
+      ultimoReporte: ultimoReporte || undefined,
+      lastSyncTimestamp: Date.now(),
+    };
+  }
+
+  async guardarPreferencia(clave: string, valor: any): Promise<void> {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORES.SETTINGS, 'readwrite');
+      tx.objectStore(STORES.SETTINGS).put({ key: clave, value: valor });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async leerPreferencia<T = any>(clave: string, porDefecto: T): Promise<T> {
+    const db = await this.openDB();
+    return new Promise((resolve) => {
+      const request = db
+        .transaction(STORES.SETTINGS, 'readonly')
+        .objectStore(STORES.SETTINGS)
+        .get(clave);
+
+      request.onsuccess = () => resolve(request.result ? request.result.value : porDefecto);
+      request.onerror = () => resolve(porDefecto);
+    });
+  }
+
+  /** Los uuid que ya existen, para no reimportar el mismo archivo dos veces. */
+  async idsExistentes(): Promise<Set<string>> {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const request = db
+        .transaction(STORES.RECORDS, 'readonly')
+        .objectStore(STORES.RECORDS)
+        .getAllKeys();
+
+      request.onsuccess = () => resolve(new Set(request.result as string[]));
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /** Los números de reporte ya presentes en el dispositivo. */
+  async reportesExistentes(): Promise<Set<number>> {
+    const registros = await this.getAllRecords();
+    return new Set(
+      registros.map((r) => r.numeroReporte).filter((n): n is number => typeof n === 'number'),
+    );
+  }
+
+  async exportBackupJSON(): Promise<string> {
+    const registros = await this.getAllRecords();
+    const equipos = await this.getAllEquipments();
+
+    return JSON.stringify(
+      {
+        version: DB_VERSION,
+        exportedAt: new Date().toISOString(),
+        records: registros,
+        equipments: equipos,
+      },
+      null,
+      2,
+    );
+  }
+
+  async importBackupJSON(
+    json: string,
+  ): Promise<{ recordsImported: number; equipmentsImported: number }> {
+    const datos = JSON.parse(json);
+    const db = await this.openDB();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([STORES.RECORDS, STORES.EQUIPMENTS], 'readwrite');
+      const registros = tx.objectStore(STORES.RECORDS);
+      const equipos = tx.objectStore(STORES.EQUIPMENTS);
+
+      let r = 0;
+      let e = 0;
+
+      if (Array.isArray(datos.records)) {
+        datos.records.forEach((registro: MaintenanceRecord) => {
+          registros.put(registro);
+          r++;
+        });
+      }
+
+      if (Array.isArray(datos.equipments)) {
+        datos.equipments.forEach((equipo: Equipment) => {
+          equipos.put(equipo);
+          e++;
+        });
+      }
+
+      tx.oncomplete = () => resolve({ recordsImported: r, equipmentsImported: e });
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /**
+   * Borra TODO lo del dispositivo. Lo que esté en la cola sin sincronizar
+   * se pierde; por eso la interfaz avisa antes cuántos hay.
+   */
+  async borrarTodosLosDatos(): Promise<void> {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(
+        [STORES.RECORDS, STORES.EQUIPMENTS, STORES.QUEUE],
+        'readwrite',
+      );
+
+      tx.objectStore(STORES.RECORDS).clear();
+      tx.objectStore(STORES.EQUIPMENTS).clear();
+      tx.objectStore(STORES.QUEUE).clear();
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+
+  private equipoDesde(r: MaintenanceRecord): Equipment {
+    return {
+      id: claveEquipo(r.serialNumber, r.inventoryCode),
+      name: r.equipment,
+      brand: r.brand,
+      model: r.model,
+      serialNumber: r.serialNumber,
+      inventoryCode: r.inventoryCode,
+      service: r.service,
+      specificLocation: r.specificLocation,
+      status: r.finalStatus,
+      lastMaintenanceDate: r.date,
+      frequencyMonths: 6,
+    };
+  }
+
+  private elementoCola(
+    r: MaintenanceRecord,
+    operacion: 'crear' | 'actualizar',
+    ahora: number,
+  ): ElementoCola {
+    return {
+      id: r.id,
+      operacion,
+      payload: r,
+      creadoEn: ahora,
+      intentos: 0,
+      ultimoError: null,
+    };
   }
 }
 

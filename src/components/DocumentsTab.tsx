@@ -16,9 +16,15 @@ import {
   Printer,
   Trash2,
   Eye,
-  Plus
+  Plus,
+  CornerDownLeft
 } from 'lucide-react';
-import { MaintenanceRecord, Equipment } from '../types';
+import {
+  MaintenanceRecord,
+  Equipment,
+  grupoEstado,
+  etiquetaReporte,
+} from '../types';
 import { 
   exportMaintenanceRecordsToExcel, 
   exportSingleRecordToExcel, 
@@ -33,6 +39,10 @@ interface DocumentsTabProps {
   onImportBackup: (file: File) => Promise<void>;
   onOpenAnnualModal: () => void;
   onNewRecord: () => void;
+  /** Abre el modal de carga masiva desde Excel. */
+  onOpenBulkImport?: () => void;
+  /** Abre el modal para insertar un reporte olvidado. */
+  onOpenInsertarReporte?: () => void;
 }
 
 export const DocumentsTab: React.FC<DocumentsTabProps> = ({
@@ -42,7 +52,9 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
   onDeleteRecord,
   onImportBackup,
   onOpenAnnualModal,
-  onNewRecord
+  onNewRecord,
+  onOpenBulkImport,
+  onOpenInsertarReporte
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('All');
@@ -87,7 +99,11 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
       const matchesEquipment = selectedEquipmentType === 'All' || r.equipment === selectedEquipmentType;
 
       // Status filter
-      const matchesStatus = selectedStatus === 'All' || r.finalStatus === selectedStatus;
+      // Se compara por grupo, no por texto exacto: el seguimiento trae
+      // "FUNCIONAL" escrito de muchas formas y a veces con el nombre de un
+      // repuesto en esa casilla.
+      const matchesStatus =
+        selectedStatus === 'All' || grupoEstado(r.finalStatus) === selectedStatus;
 
       return matchesSearch && matchesBrand && matchesEquipment && matchesStatus;
     });
@@ -117,7 +133,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
   };
 
   return (
-    <div className="pb-28 pt-4 px-4 max-w-md mx-auto space-y-4.5 animate-in fade-in duration-200">
+    <div className="pb-28 lg:pb-10 pt-4 px-4 max-w-md lg:max-w-none mx-auto space-y-4.5 animate-in fade-in duration-200">
       
       {/* Title & Subtitle matching Image 3 */}
       <div>
@@ -128,6 +144,49 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
           Registra, filtra y exporta el historial de mantenimientos
         </p>
       </div>
+
+      {/* Insertar un reporte olvidado: renumera los posteriores, asi que
+          va aparte del registro normal y con su propio color. */}
+      {onOpenInsertarReporte && (
+        <button
+          type="button"
+          onClick={onOpenInsertarReporte}
+          className="w-full flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-left transition hover:bg-amber-50"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white">
+            <CornerDownLeft className="h-4.5 w-4.5 text-amber-700" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-amber-900">
+              Insertar un reporte olvidado
+            </span>
+            <span className="block text-[11px] text-amber-700/80">
+              Se ubica en el número que usted indique y corre los siguientes
+            </span>
+          </span>
+        </button>
+      )}
+
+      {/* Registro masivo desde Excel */}
+      {onOpenBulkImport && (
+        <button
+          type="button"
+          onClick={onOpenBulkImport}
+          className="w-full flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-left transition hover:bg-emerald-50"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white">
+            <FileSpreadsheet className="h-4.5 w-4.5 text-emerald-700" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-emerald-900">
+              Registro masivo desde Excel
+            </span>
+            <span className="block text-[11px] text-emerald-700/80">
+              Importe muchos mantenimientos de una hoja de cálculo
+            </span>
+          </span>
+        </button>
+      )}
 
       {/* Hidden File Input for Import */}
       <input
@@ -244,7 +303,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
       </div>
 
       {/* Record Cards List matching Image 3 */}
-      <div className="space-y-3">
+      <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-3 lg:items-start">
         {paginatedRecords.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
             <p className="text-xs text-slate-500">No se encontraron registros que coincidan con la búsqueda.</p>
@@ -257,8 +316,8 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
           </div>
         ) : (
           paginatedRecords.map((record) => {
-            const isCompleted = record.finalStatus === 'Operativo' || record.finalStatus === 'Calibrado';
-            const isPending = record.finalStatus === 'En Espera de Repuestos';
+            const isCompleted = grupoEstado(record.finalStatus) === 'funcional';
+            const isPending = grupoEstado(record.finalStatus) === 'espera';
             
             return (
               <div
@@ -269,7 +328,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
                 {/* Card Header: ID & Status Badge */}
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs font-bold text-blue-900">
-                    {record.id}
+                    {etiquetaReporte(record)}
                   </span>
                   
                   {/* Status Pill Badge matching image */}

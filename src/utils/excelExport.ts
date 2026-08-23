@@ -17,58 +17,60 @@ export function exportMaintenanceRecordsToExcel(
   const wb = XLSX.utils.book_new();
 
   // 1. Prepare Main Sheet Data
-  const sheetData = records.map((r, index) => ({
-    'Ítem': index + 1,
-    'Código Registro': r.id,
-    'Código Inventario': r.inventoryCode,
-    'Equipo': r.equipment,
-    'Marca': r.brand,
-    'Modelo': r.model,
-    'N° de Serie': r.serialNumber,
-    'Servicio Hospitalario': r.service,
-    'Ubicación Específica': r.specificLocation,
-    'Fecha Intervención': r.date,
-    'Hora': r.time || 'N/A',
-    'Tipo Mantenimiento': r.maintenanceType,
-    'Estado Final': r.finalStatus,
-    'Repuestos Utilizados': r.spareParts || 'Ninguno',
-    'Trabajo Realizado / Falla': r.failureComments,
-    'Observaciones / Recomendaciones': r.additionalObservations || 'Ninguna',
-    'Ingeniero Biomédico': r.technicianName,
-    'Tarjeta Profesional': r.technicianCard || 'T.P. BIO-88942'
+  // Las columnas siguen el seguimiento en papel de la clinica, para que el
+  // archivo exportado se pueda pegar junto a los meses anteriores.
+  const sheetData = records.map((r) => ({
+    'FECHA': r.date,
+    'REPORTE': r.numeroReporte ?? '',
+    'EQUIPO': r.equipment,
+    'MARCA': r.brand,
+    'MODELO': r.model,
+    'SERIE': r.serialNumber,
+    'SERVICIO': r.service,
+    'UBICACION': r.specificLocation,
+    'INVENTARIO': r.inventoryCode,
+    'PREVENTIVO': r.preventivo ? 'X' : '',
+    'CORRECTIVO': r.correctivo ? 'X' : '',
+    'OTRO': r.otro ? 'X' : '',
+    'DESCRIPCION': r.failureComments,
+    'OBSERVACIONES': r.additionalObservations,
+    'ESTADO': r.finalStatus,
+    'REPUESTOS': r.spareParts,
+    'TECNICO': r.technicianName
   }));
+
 
   const ws = XLSX.utils.json_to_sheet(sheetData);
 
   // Set column widths for comfortable reading
   ws['!cols'] = [
-    { wch: 6 },  // Ítem
-    { wch: 16 }, // Código Registro
-    { wch: 20 }, // Código Inventario
-    { wch: 26 }, // Equipo
-    { wch: 18 }, // Marca
-    { wch: 18 }, // Modelo
-    { wch: 16 }, // N° de Serie
-    { wch: 22 }, // Servicio Hospitalario
-    { wch: 22 }, // Ubicación Específica
-    { wch: 16 }, // Fecha Intervención
-    { wch: 10 }, // Hora
-    { wch: 18 }, // Tipo Mantenimiento
-    { wch: 22 }, // Estado Final
-    { wch: 30 }, // Repuestos
-    { wch: 40 }, // Trabajo Realizado
-    { wch: 35 }, // Observaciones
-    { wch: 20 }, // Ingeniero
-    { wch: 20 }  // Tarjeta Prof
+    { wch: 12 },  // FECHA
+    { wch: 10 },  // REPORTE
+    { wch: 28 },  // EQUIPO
+    { wch: 20 },  // MARCA
+    { wch: 18 },  // MODELO
+    { wch: 22 },  // SERIE
+    { wch: 20 },  // SERVICIO
+    { wch: 18 },  // UBICACION
+    { wch: 18 },  // INVENTARIO
+    { wch: 12 },  // PREVENTIVO
+    { wch: 12 },  // CORRECTIVO
+    { wch: 8 },   // OTRO
+    { wch: 40 },  // DESCRIPCION
+    { wch: 40 },  // OBSERVACIONES
+    { wch: 22 },  // ESTADO
+    { wch: 26 },  // REPUESTOS
+    { wch: 22 }   // TECNICO
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, 'Mantenimientos');
 
   // 2. Add KPI / Statistical Summary Sheet
   const total = records.length;
-  const preventivos = records.filter(r => r.maintenanceType === 'Preventivo').length;
-  const correctivos = records.filter(r => r.maintenanceType === 'Correctivo').length;
-  const otros = records.filter(r => r.maintenanceType === 'Otro').length;
+  // Independientes: una fila con dos casillas marcadas cuenta en las dos.
+  const preventivos = records.filter(r => r.preventivo).length;
+  const correctivos = records.filter(r => r.correctivo).length;
+  const otros = records.filter(r => r.otro).length;
   
   const operativos = records.filter(r => r.finalStatus === 'Operativo' || r.finalStatus === 'Calibrado').length;
   const esperaRepuestos = records.filter(r => r.finalStatus === 'En Espera de Repuestos').length;
@@ -134,6 +136,14 @@ export function exportMonthlyReportToExcel(records: MaintenanceRecord[], year: n
 }
 
 export function exportSingleRecordToExcel(record: MaintenanceRecord) {
-  const fileName = `Ficha_Mantenimiento_${record.id.replace(/[^a-zA-Z0-9_-]/g, '_')}_${record.equipment.replace(/\s+/g, '_')}.xlsx`;
-  exportMaintenanceRecordsToExcel([record], fileName, `Ficha Individual de Intervención: ${record.id}`);
+  const referencia = record.numeroReporte ? `Reporte_${record.numeroReporte}` : 'Sin_reporte';
+  const fileName = `Ficha_${referencia}_${record.equipment.replace(/\s+/g, '_')}.xlsx`;
+
+  exportMaintenanceRecordsToExcel(
+    [record],
+    fileName,
+    record.numeroReporte
+      ? `Ficha del reporte ${record.numeroReporte}`
+      : 'Ficha de intervención (sin número de reporte asignado)'
+  );
 }

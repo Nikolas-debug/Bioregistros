@@ -1,6 +1,0 @@
-{
-  "name": "Biogestión",
-  "description": "PWA para registro de mantenimientos biomédicos con base de datos IndexedDB, soporte offline y descarga de reportes anuales en Excel.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

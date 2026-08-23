@@ -7,63 +7,48 @@ interface BottomNavProps {
   onTabChange: (tab: ActiveTab) => void;
 }
 
+const PESTANAS: { id: ActiveTab; etiqueta: string; Icono: typeof LayoutGrid }[] = [
+  { id: 'inicio', etiqueta: 'Inicio', Icono: LayoutGrid },
+  { id: 'registrar', etiqueta: 'Registrar', Icono: PlusCircle },
+  { id: 'documentos', etiqueta: 'Documentos', Icono: FileText },
+];
+
+/**
+ * Barra inferior, solo en pantallas pequeñas.
+ *
+ * En escritorio se oculta: allí la navegación está en la cabecera, donde
+ * el ratón la alcanza sin recorrer toda la pantalla. Una barra pegada al
+ * borde inferior de un monitor de 27 pulgadas es un mal sitio para poner
+ * los botones principales.
+ */
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-lg pb-safe">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-lg pb-safe">
       <div className="max-w-md mx-auto grid grid-cols-3 h-16">
-        {/* Inicio */}
-        <button
-          id="nav-tab-inicio"
-          onClick={() => onTabChange('inicio')}
-          className={`flex flex-col items-center justify-center transition-colors ${
-            activeTab === 'inicio'
-              ? 'text-blue-600 font-semibold'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <LayoutGrid
-            className={`w-6 h-6 mb-1 transition-transform ${
-              activeTab === 'inicio' ? 'scale-110 stroke-[2.5]' : 'stroke-[1.75]'
-            }`}
-          />
-          <span className="text-xs">Inicio</span>
-        </button>
+        {PESTANAS.map(({ id, etiqueta, Icono }) => {
+          const activa = activeTab === id;
 
-        {/* Registrar */}
-        <button
-          id="nav-tab-registrar"
-          onClick={() => onTabChange('registrar')}
-          className={`flex flex-col items-center justify-center transition-colors ${
-            activeTab === 'registrar'
-              ? 'text-blue-600 font-semibold'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <PlusCircle
-            className={`w-6 h-6 mb-1 transition-transform ${
-              activeTab === 'registrar' ? 'scale-110 stroke-[2.5]' : 'stroke-[1.75]'
-            }`}
-          />
-          <span className="text-xs">Registrar</span>
-        </button>
-
-        {/* Documentos */}
-        <button
-          id="nav-tab-documentos"
-          onClick={() => onTabChange('documentos')}
-          className={`flex flex-col items-center justify-center transition-colors ${
-            activeTab === 'documentos'
-              ? 'text-blue-600 font-semibold'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <FileText
-            className={`w-6 h-6 mb-1 transition-transform ${
-              activeTab === 'documentos' ? 'scale-110 stroke-[2.5]' : 'stroke-[1.75]'
-            }`}
-          />
-          <span className="text-xs">Documentos</span>
-        </button>
+          return (
+            <button
+              key={id}
+              id={`nav-tab-${id}`}
+              onClick={() => onTabChange(id)}
+              aria-current={activa ? 'page' : undefined}
+              className={`flex flex-col items-center justify-center transition-colors ${
+                activa
+                  ? 'text-blue-600 font-semibold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Icono
+                className={`w-6 h-6 mb-1 transition-transform ${
+                  activa ? 'scale-110 stroke-[2.5]' : 'stroke-[1.75]'
+                }`}
+              />
+              <span className="text-xs">{etiqueta}</span>
+            </button>
+          );
+        })}
       </div>
     </nav>
   );

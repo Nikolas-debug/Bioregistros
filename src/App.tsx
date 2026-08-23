@@ -15,29 +15,39 @@ import { RecordDetailModal } from './components/RecordDetailModal';
 import { EditRecordModal } from './components/EditRecordModal';
 import { SettingsModal } from './components/SettingsModal';
 import { NewEquipmentModal } from './components/NewEquipmentModal';
+import { BulkImportModal } from './components/BulkImportModal';
+import { InsertarReporteModal } from './components/InsertarReporteModal';
+import { SyncIndicator } from './components/SyncIndicator';
+import { api, alPerderSesion } from './api/client';
 import { dbManager } from './db/indexedDB';
+import { syncManager } from './sync/syncManager';
 import { 
   ActiveTab, 
   MaintenanceRecord, 
   Equipment, 
   UserProfile, 
-  DatabaseStats, 
-  MaintenanceStatus 
+  DatabaseStats
 } from './types';
+
+/** Perfil sin datos: el estado inicial antes de que alguien inicie sesion. */
+const PERFIL_VACIO: UserProfile = {
+  id: '',
+  name: '',
+  email: '',
+  role: 'Técnico Biomédico',
+  institution: '',
+  avatarUrl: '',
+  isLoggedIn: false
+};
 
 export default function App() {
   // Navigation & User State
   const [activeTab, setActiveTab] = useState<ActiveTab>('inicio');
-  const [user, setUser] = useState<UserProfile>({
-    id: 'usr-001',
-    name: 'Luis Machado',
-    email: 'luis.machado@clinicadelnino.com',
-    role: 'Ingeniero Biomédico Jefe',
-    institution: 'Clínica del Niño',
-    professionalCard: 'T.P. BIO-88942',
-    avatarUrl: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
-    isLoggedIn: true // Default logged in for immediate review, with ability to log out to test login screen
-  });
+  // El perfil arranca vacio: quien registra debe identificarse.
+  // Ese nombre queda en cada mantenimiento, asi que no puede venir
+  // quemado en el codigo.
+  const [user, setUser] = useState<UserProfile>(PERFIL_VACIO);
+  const [cargandoPerfil, setCargandoPerfil] = useState(true);
 
   // Data state from IndexedDB
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
@@ -63,6 +73,8 @@ export default function App() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAnnualModal, setShowAnnualModal] = useState(false);
   const [showNewEquipmentModal, setShowNewEquipmentModal] = useState(false);
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [showInsertarReporte, setShowInsertarReporte] = useState(false);
 
   // Load records and statistics from IndexedDB
   const loadDatabase = useCallback(async () => {
@@ -79,6 +91,58 @@ export default function App() {
     }
   }, []);
 
+  /**
+   * Recuperar la sesion al abrir.
+   *
+   * El perfil se guarda en el dispositivo para que la aplicacion arranque
+   * util sin conexion: un tecnico en ronda no puede quedarse en la
+   * pantalla de ingreso porque el hospital no tiene senal. Si hay red, se
+   * verifica el token contra el servidor y se refresca el perfil.
+   */
+  useEffect(() => {
+    let vigente = true;
+
+    (async () => {
+      const guardado = await dbManager.leerPreferencia<UserProfile | null>(
+        'perfilUsuario',
+        null
+      );
+
+      if (!api.hayToken()) {
+        // Sin token no hay sesion, aunque quede un perfil viejo guardado.
+        if (vigente) setCargandoPerfil(false);
+        return;
+      }
+
+      // Se entra de una con lo guardado, para no hacer esperar a nadie.
+      if (guardado?.name && vigente) {
+        setUser({ ...guardado, isLoggedIn: true });
+      }
+
+      try {
+        const perfil = await api.miPerfil();
+        if (!vigente) return;
+        setUser({ ...perfil, isLoggedIn: true });
+        dbManager.guardarPreferencia('perfilUsuario', perfil).catch(() => {});
+      } catch {
+        // Sin red se sigue con lo guardado. Si el token estuviera vencido,
+        // el cliente ya habria disparado el aviso de sesion perdida.
+      } finally {
+        if (vigente) setCargandoPerfil(false);
+      }
+    })();
+
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
+  // El servidor rechazo el token: se vuelve a la pantalla de ingreso sin
+  // tocar los datos locales, que siguen ahi esperando a sincronizar.
+  useEffect(() => alPerderSesion(() => {
+    setUser((prev) => ({ ...prev, isLoggedIn: false }));
+  }), []);
+
   // Initialize DB and network listeners
   useEffect(() => {
     loadDatabase();
@@ -88,6 +152,18 @@ export default function App() {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // Arranca el puente IndexedDB -> Laravel -> PostgreSQL.
+    // Devuelve su propia funcion de limpieza (listeners e intervalos).
+    const detenerSync = syncManager.iniciar();
+
+    // Cada vez que la cola cambia, refrescamos la vista para que los
+    // registros pasen de "pendiente" a "sincronizado" sin recargar.
+    const dejarDeEscuchar = syncManager.suscribir((estado) => {
+      if (estado.estado === 'inactivo' && estado.pendientes === 0) {
+        loadDatabase();
+      }
+    });
 
     // Register Service Worker for offline PWA caching if supported
     if ('serviceWorker' in navigator) {
@@ -100,6 +176,8 @@ export default function App() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      detenerSync();
+      dejarDeEscuchar();
     };
   }, [loadDatabase]);
 
@@ -109,6 +187,11 @@ export default function App() {
   ) => {
     await dbManager.addRecord(recordData);
     await loadDatabase();
+
+    // Intento inmediato de subida. Si no hay red no pasa nada: el registro
+    // ya quedo en la cola y el syncManager lo reintentara solo.
+    syncManager.sincronizar('registro-nuevo').catch(() => {});
+
     setActiveTab('documentos');
   };
 
@@ -116,11 +199,12 @@ export default function App() {
   const handleUpdateRecord = async (updated: MaintenanceRecord) => {
     await dbManager.updateRecord(updated);
     await loadDatabase();
+    syncManager.sincronizar('registro-editado').catch(() => {});
     setSelectedRecord(updated);
   };
 
   // Handler: Update Status directly
-  const handleUpdateStatus = async (record: MaintenanceRecord, newStatus: MaintenanceStatus) => {
+  const handleUpdateStatus = async (record: MaintenanceRecord, newStatus: string) => {
     const updated = { ...record, finalStatus: newStatus };
     await dbManager.updateRecord(updated);
     await loadDatabase();
@@ -165,29 +249,90 @@ export default function App() {
     }
   };
 
-  // Handler: Reset Database to clinic demo
+  // Handler: borrar todos los datos del dispositivo.
+  // Se avisa cuantos registros quedarian sin subir, porque esos se
+  // pierden para siempre.
   const handleResetData = async () => {
-    await dbManager.resetToDemoData();
+    const pendientes = await dbManager.contarPendientes();
+
+    if (pendientes > 0) {
+      const seguir = window.confirm(
+        `Atención: hay ${pendientes} registro(s) que todavía no se han ` +
+        `subido al servidor. Si borra ahora, esos datos se pierden.\n\n` +
+        `¿Desea continuar de todas formas?`
+      );
+      if (!seguir) return;
+    }
+
+    await dbManager.borrarTodosLosDatos();
     await loadDatabase();
-    alert('Base de datos local IndexedDB restablecida con los datos clínicos.');
+    await syncManager.refrescarPendientes();
+    alert('Se borraron todos los datos guardados en este dispositivo.');
   };
 
   // Handler: User Profile updates
   const handleUpdateUser = (updatedProfile: Partial<UserProfile>) => {
-    setUser((prev) => ({ ...prev, ...updatedProfile }));
+    setUser((prev) => {
+      const nuevo = { ...prev, ...updatedProfile };
+      dbManager.guardarPreferencia('perfilUsuario', nuevo).catch(() => {});
+
+      // Tambien al servidor, para que sobreviva a un cambio de dispositivo.
+      // Si no hay red no pasa nada: la copia local ya quedo guardada.
+      api
+        .actualizarPerfil({
+          name: nuevo.name,
+          cargo: nuevo.role,
+          institucion: nuevo.institution,
+        })
+        .catch(() => {});
+
+      return nuevo;
+    });
   };
+
+  /**
+   * Cerrar sesion.
+   *
+   * Se avisa si hay registros sin subir: el token se revoca y sin sesion
+   * no se puede sincronizar, asi que ese trabajo quedaria varado en el
+   * dispositivo hasta que alguien vuelva a entrar.
+   */
+  const handleLogout = async () => {
+    const pendientes = await dbManager.contarPendientes();
+
+    if (pendientes > 0) {
+      const seguir = window.confirm(
+        `Hay ${pendientes} registro(s) sin subir al servidor.\n\n` +
+        'Al cerrar sesión no se pierden, pero se quedan esperando en este ' +
+        'dispositivo hasta que alguien vuelva a entrar.\n\n' +
+        '¿Desea cerrar sesión de todas formas?'
+      );
+      if (!seguir) return;
+    }
+
+    await api.cerrarSesion();
+    setUser((prev) => ({ ...prev, isLoggedIn: false }));
+  };
+
+  // Mientras se lee el perfil guardado no se muestra nada, para evitar
+  // que la pantalla de login parpadee en cada arranque.
+  if (cargandoPerfil) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      </div>
+    );
+  }
 
   // If not logged in, render login screen
   if (!user.isLoggedIn) {
     return (
       <LoginScreen
-        onLogin={(loggedUser) =>
-          setUser((prev) => ({
-            ...prev,
-            ...loggedUser,
-            isLoggedIn: true
-          }))
-        }
+        onLogin={(perfil) => {
+          setUser({ ...perfil, isLoggedIn: true });
+          dbManager.guardarPreferencia('perfilUsuario', perfil).catch(() => {});
+          syncManager.sincronizar('inicio-sesion').catch(() => {});
+        }}
       />
     );
   }
@@ -201,10 +346,20 @@ export default function App() {
         onOpenSettings={() => setShowSettingsModal(true)}
         isOnline={isOnline}
         totalRecordsCount={records.length}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
       />
 
       {/* Main Content Body */}
-      <main className="flex-1 w-full max-w-md mx-auto">
+      {/* En escritorio el contenido se ensancha; en el celular se queda
+          en una columna comoda para el pulgar. */}
+      <main className="flex-1 w-full max-w-md lg:max-w-6xl mx-auto">
+
+        {/* Estado de sincronizacion con PostgreSQL */}
+        <div className="px-4 pt-3">
+          <SyncIndicator />
+        </div>
+
         {activeTab === 'inicio' && (
           <HomeTab
             user={user}
@@ -223,6 +378,7 @@ export default function App() {
             onCancel={() => setActiveTab('inicio')}
             equipments={equipments}
             technicianName={user.name}
+            onOpenBulkImport={() => setShowBulkImportModal(true)}
           />
         )}
 
@@ -235,6 +391,8 @@ export default function App() {
             onImportBackup={handleImportBackup}
             onOpenAnnualModal={() => setShowAnnualModal(true)}
             onNewRecord={() => setActiveTab('registrar')}
+            onOpenBulkImport={() => setShowBulkImportModal(true)}
+            onOpenInsertarReporte={() => setShowInsertarReporte(true)}
           />
         )}
       </main>
@@ -284,7 +442,30 @@ export default function App() {
           onExportBackup={handleExportBackup}
           onImportBackup={handleImportBackup}
           onResetData={handleResetData}
-          onLogout={() => setUser((prev) => ({ ...prev, isLoggedIn: false }))}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {/* MODAL: Registro masivo desde Excel */}
+      {showBulkImportModal && (
+        <BulkImportModal
+          onClose={() => setShowBulkImportModal(false)}
+          onImportado={loadDatabase}
+          tecnicoPorDefecto={user.name}
+        />
+      )}
+
+      {/* MODAL: Insertar un reporte olvidado (renumera los posteriores) */}
+      {showInsertarReporte && (
+        <InsertarReporteModal
+          onClose={() => setShowInsertarReporte(false)}
+          onInsertado={async () => {
+            // El reporte se creo directamente en el servidor, asi que hay
+            // que traerlo para que aparezca en el listado del dispositivo.
+            await syncManager.sincronizar('reporte-insertado');
+            await loadDatabase();
+          }}
+          tecnicoPorDefecto={user.name}
         />
       )}
 

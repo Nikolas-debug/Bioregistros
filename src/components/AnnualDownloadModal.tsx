@@ -10,7 +10,10 @@ import {
   Building2,
   FileCheck
 } from 'lucide-react';
-import { MaintenanceRecord } from '../types';
+import {
+  MaintenanceRecord,
+  grupoEstado,
+} from '../types';
 import { exportAnnualReportToExcel, exportMonthlyReportToExcel } from '../utils/excelExport';
 
 interface AnnualDownloadModalProps {
@@ -58,9 +61,10 @@ export const AnnualDownloadModal: React.FC<AnnualDownloadModalProps> = ({
     return true;
   });
 
-  const preventivos = periodRecords.filter(r => r.maintenanceType === 'Preventivo').length;
-  const correctivos = periodRecords.filter(r => r.maintenanceType === 'Correctivo').length;
-  const operativos = periodRecords.filter(r => r.finalStatus === 'Operativo' || r.finalStatus === 'Calibrado').length;
+  // Las tres casillas son independientes: una fila puede contar en dos.
+  const preventivos = periodRecords.filter(r => r.preventivo).length;
+  const correctivos = periodRecords.filter(r => r.correctivo).length;
+  const operativos = periodRecords.filter(r => grupoEstado(r.finalStatus) === 'funcional').length;
 
   const handleDownload = () => {
     if (selectedMonth === 0) {

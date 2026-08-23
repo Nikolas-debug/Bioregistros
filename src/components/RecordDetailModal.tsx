@@ -18,7 +18,12 @@ import {
   Building2,
   Share2
 } from 'lucide-react';
-import { MaintenanceRecord, MaintenanceStatus } from '../types';
+import {
+  MaintenanceRecord,
+  grupoEstado,
+  etiquetaClases,
+  etiquetaReporte,
+} from '../types';
 import { exportSingleRecordToExcel } from '../utils/excelExport';
 
 interface RecordDetailModalProps {
@@ -26,7 +31,7 @@ interface RecordDetailModalProps {
   onClose: () => void;
   onEdit: (record: MaintenanceRecord) => void;
   onDelete: (id: string) => Promise<void>;
-  onUpdateStatus: (record: MaintenanceRecord, newStatus: MaintenanceStatus) => Promise<void>;
+  onUpdateStatus: (record: MaintenanceRecord, newStatus: string) => Promise<void>;
 }
 
 export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({
@@ -91,20 +96,20 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Estado Técnico</span>
               <span className={`text-xs font-bold inline-flex items-center gap-1 mt-1 ${
-                record.finalStatus === 'Operativo' || record.finalStatus === 'Calibrado'
+                grupoEstado(record.finalStatus) === 'funcional'
                   ? 'text-emerald-700'
-                  : record.finalStatus === 'En Espera de Repuestos'
+                  : grupoEstado(record.finalStatus) === 'espera'
                   ? 'text-amber-700'
                   : 'text-rose-700'
               }`}>
-                {record.finalStatus}
+                {record.finalStatus || 'Sin estado'}
               </span>
             </div>
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Clase Intervención</span>
               <span className="text-xs font-bold text-blue-900 inline-flex items-center gap-1 mt-1">
-                <Wrench className="w-3 h-3 text-blue-600" /> {record.maintenanceType}
+                <Wrench className="w-3 h-3 text-blue-600" /> {etiquetaClases(record)}
               </span>
             </div>
           </div>
@@ -185,7 +190,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({
               </div>
               <div>
                 <span className="font-bold text-slate-900 block">{record.technicianName}</span>
-                <span className="text-[11px] text-slate-500 font-mono">{record.technicianCard || 'T.P. BIO-88942'}</span>
+                <span className="text-[11px] text-slate-500 font-mono">{etiquetaReporte(record)}</span>
               </div>
             </div>
             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">

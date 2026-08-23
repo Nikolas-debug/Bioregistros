@@ -1,0 +1,31 @@
+# Todo esto no debe entrar en la imagen: la hace pesada, lenta de
+# construir y, en el caso de los .env, insegura.
+
+node_modules
+dist
+.git
+.gitignore
+
+backend/vendor
+backend/node_modules
+backend/storage/logs/*
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/bootstrap/cache/*
+
+# Nunca copiar credenciales dentro de la imagen: en Railway van como
+# variables de entorno.
+.env
+.env.*
+backend/.env
+backend/.env.*
+
+# Herramientas locales de Windows
+*.bat
+*.ps1
+composer.phar
+_archivos-backend
+
+# Documentación
+*.md

@@ -10,36 +10,39 @@ import {
   Wrench, 
   ShieldCheck, 
   MoreHorizontal,
-  Sparkles
+  Sparkles,
+  FileSpreadsheet
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { MaintenanceRecord, MaintenanceStatus, MaintenanceType, HospitalService, Equipment } from '../types';
+import {
+  MaintenanceRecord,
+  Equipment,
+  ESTADOS_SUGERIDOS,
+  SERVICIOS_SUGERIDOS,
+} from '../types';
 
 interface RegisterTabProps {
   onSaveRecord: (record: Omit<MaintenanceRecord, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   onCancel: () => void;
   equipments: Equipment[];
   technicianName: string;
+  /** Abre el modal de carga masiva desde Excel. */
+  onOpenBulkImport?: () => void;
 }
 
-const SERVICES: HospitalService[] = [
-  'UCI',
-  'UCI Neonatal',
-  'UCI Pediátrica',
-  'Urgencias',
-  'Quirófano',
-  'Hospitalización',
-  'Imágenes Diagnósticas',
-  'Laboratorio Clínico',
-  'Consulta Externa',
-  'Central de Esterilización'
-];
+/**
+ * Sugerencias, no una lista cerrada. El seguimiento real trae servicios
+ * como "TORRE B", "CKU.635" o "NNS364" que ninguna lista fija habria
+ * aceptado, y rechazarlos obligaria al tecnico a mentir.
+ */
+const SERVICES = SERVICIOS_SUGERIDOS;
 
 export const RegisterTab: React.FC<RegisterTabProps> = ({
   onSaveRecord,
   onCancel,
   equipments,
-  technicianName
+  technicianName,
+  onOpenBulkImport
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -49,13 +52,18 @@ export const RegisterTab: React.FC<RegisterTabProps> = ({
   const [model, setModel] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   
-  const [service, setService] = useState<HospitalService>('UCI');
+  const [service, setService] = useState('');
   const [specificLocation, setSpecificLocation] = useState('');
   const [inventoryCode, setInventoryCode] = useState('');
 
   const [date, setDate] = useState(todayStr);
-  const [finalStatus, setFinalStatus] = useState<MaintenanceStatus>('Operativo');
-  const [maintenanceType, setMaintenanceType] = useState<MaintenanceType>('Preventivo');
+  const [finalStatus, setFinalStatus] = useState('FUNCIONAL');
+
+  // Tres casillas independientes, como en el seguimiento en papel: una
+  // intervencion puede ser preventiva y correctiva a la vez.
+  const [preventivo, setPreventivo] = useState(true);
+  const [correctivo, setCorrectivo] = useState(false);
+  const [otro, setOtro] = useState(false);
   const [spareParts, setSpareParts] = useState('');
   const [failureComments, setFailureComments] = useState('');
   const [additionalObservations, setAdditionalObservations] = useState('');
@@ -70,14 +78,31 @@ export const RegisterTab: React.FC<RegisterTabProps> = ({
     setModel(eq.model);
     setSerialNumber(eq.serialNumber);
     setInventoryCode(eq.inventoryCode);
-    setService(eq.service as HospitalService);
+    setService(eq.service);
     setSpecificLocation(eq.specificLocation);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!equipment.trim() || !serialNumber.trim()) {
-      alert('Por favor ingrese al menos el nombre del Equipo y el Número de Serie.');
+    if (!equipment.trim()) {
+      alert('Escriba al menos el nombre del equipo.');
+      return;
+    }
+
+    // La serie identifica el equipo en la base. Se puede omitir, pero
+    // conviene avisar: sin serie ni inventario se crea un equipo nuevo
+    // cada vez, y la hoja de vida queda partida en pedazos.
+    if (!serialNumber.trim() && !inventoryCode.trim()) {
+      const seguir = window.confirm(
+        'Este registro no tiene número de serie ni código de inventario.\n\n' +
+        'Sin uno de los dos no se puede enlazar con el historial del equipo. ' +
+        '¿Desea guardarlo así?'
+      );
+      if (!seguir) return;
+    }
+
+    if (!preventivo && !correctivo && !otro) {
+      alert('Marque al menos una clase: preventivo, correctivo u otro.');
       return;
     }
 
@@ -90,17 +115,18 @@ export const RegisterTab: React.FC<RegisterTabProps> = ({
         serialNumber: serialNumber.trim(),
         service,
         specificLocation: specificLocation.trim() || 'Ubicación General',
-        inventoryCode: inventoryCode.trim() || `CDN-${Math.floor(1000 + Math.random() * 9000)}`,
+        inventoryCode: inventoryCode.trim(),
         date,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        finalStatus,
-        maintenanceType,
+        time: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        finalStatus: finalStatus.trim(),
+        preventivo,
+        correctivo,
+        otro,
         spareParts: spareParts.trim(),
-        failureComments: failureComments.trim() || 'Mantenimiento preventivo / inspección técnica realizada.',
+        failureComments: failureComments.trim(),
         additionalObservations: additionalObservations.trim(),
-        technicianName: technicianName || 'Luis Machado',
-        technicianCard: 'T.P. BIO-88942',
-        syncedOffline: true
+        // La firma sale del perfil de quien inicio sesion.
+        technicianName
       });
 
       // Trigger celebratory confetti
@@ -123,18 +149,21 @@ export const RegisterTab: React.FC<RegisterTabProps> = ({
         setSpareParts('');
         setFailureComments('');
         setAdditionalObservations('');
+        setPreventivo(true);
+        setCorrectivo(false);
+        setOtro(false);
       }, 1500);
 
     } catch (err) {
       console.error(err);
-      alert('Hubo un error al guardar en IndexedDB');
+      alert('No se pudo guardar el registro en el dispositivo.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="pb-28 pt-4 px-4 max-w-md mx-auto space-y-6 animate-in fade-in duration-200">
+    <div className="pb-28 lg:pb-10 pt-4 px-4 max-w-md lg:max-w-2xl mx-auto space-y-6 animate-in fade-in duration-200">
       
       {/* Title & Description matching Image 1 */}
       <div>
@@ -145,6 +174,27 @@ export const RegisterTab: React.FC<RegisterTabProps> = ({
           Complete los datos técnicos de la intervención en el equipo biomédico.
         </p>
       </div>
+
+      {/* Registro masivo: atajo para cargar muchas filas desde un Excel */}
+      {onOpenBulkImport && (
+        <button
+          type="button"
+          onClick={onOpenBulkImport}
+          className="w-full flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-blue-300 hover:bg-blue-50/40"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
+            <FileSpreadsheet className="h-4.5 w-4.5 text-emerald-700" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-slate-900">
+              Registro masivo desde Excel
+            </span>
+            <span className="block text-[11px] text-slate-500">
+              Cargue varias intervenciones de una sola vez
+            </span>
+          </span>
+        </button>
+      )}
 
       {/* Quick Suggestions from inventory */}
       {equipments.length > 0 && !equipment && (
@@ -264,18 +314,20 @@ export const RegisterTab: React.FC<RegisterTabProps> = ({
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1">
                 SERVICIO
               </label>
-              <select
-                id="select-location-service"
+              <input
+                id="input-location-service"
+                type="text"
+                list="lista-servicios"
                 value={service}
-                onChange={(e) => setService(e.target.value as HospitalService)}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              >
+                onChange={(e) => setService(e.target.value)}
+                placeholder="Ej. HOSPITALIZACION, UCI NEONATAL, TORRE B"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 text-sm font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              />
+              <datalist id="lista-servicios">
                 {SERVICES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
+                  <option key={s} value={s} />
                 ))}
-              </select>
+              </datalist>
             </div>
 
             {/* Ubicación Específica */}
@@ -336,71 +388,54 @@ export const RegisterTab: React.FC<RegisterTabProps> = ({
               <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-1">
                 ESTADO FINAL DEL EQUIPO
               </label>
-              <select
-                id="select-final-status"
+              <input
+                id="input-final-status"
+                type="text"
+                list="lista-estados"
                 value={finalStatus}
-                onChange={(e) => setFinalStatus(e.target.value as MaintenanceStatus)}
-                className="w-full bg-transparent border-0 p-0 text-slate-900 text-sm font-semibold focus:outline-hidden focus:ring-0"
-              >
-                <option value="Operativo">Operativo</option>
-                <option value="En Espera de Repuestos">En Espera de Repuestos</option>
-                <option value="Fuera de Servicio">Fuera de Servicio</option>
-                <option value="Calibrado">Calibrado</option>
-              </select>
+                onChange={(e) => setFinalStatus(e.target.value)}
+                placeholder="FUNCIONAL"
+                className="w-full bg-transparent border-0 p-0 text-slate-900 text-sm font-semibold placeholder:text-slate-400 focus:outline-hidden focus:ring-0"
+              />
+              <datalist id="lista-estados">
+                {ESTADOS_SUGERIDOS.map((e) => (
+                  <option key={e} value={e} />
+                ))}
+              </datalist>
             </div>
 
-            {/* Clase de Mantenimiento (Pill buttons matching image) */}
+            {/* Clase de mantenimiento: tres casillas independientes,
+                igual que en el seguimiento en papel. Una intervencion
+                puede ser preventiva y correctiva a la vez. */}
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-2">
+              <label className="block text-xs font-bold text-slate-800 mb-1">
                 Clase de Mantenimiento
               </label>
+              <p className="text-[11px] text-slate-500 mb-2">
+                Puede marcar más de una.
+              </p>
               <div className="flex flex-wrap gap-2">
-                
-                {/* Preventivo */}
-                <button
-                  type="button"
+                <CasillaClase
                   id="btn-type-preventivo"
-                  onClick={() => setMaintenanceType('Preventivo')}
-                  className={`px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                    maintenanceType === 'Preventivo'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Preventivo</span>
-                </button>
-
-                {/* Correctivo */}
-                <button
-                  type="button"
+                  activa={preventivo}
+                  onToggle={() => setPreventivo((v) => !v)}
+                  icono={<ShieldCheck className="w-3.5 h-3.5" />}
+                  etiqueta="Preventivo"
+                />
+                <CasillaClase
                   id="btn-type-correctivo"
-                  onClick={() => setMaintenanceType('Correctivo')}
-                  className={`px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                    maintenanceType === 'Correctivo'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  <Wrench className="w-3.5 h-3.5" />
-                  <span>Correctivo</span>
-                </button>
-
-                {/* Otro */}
-                <button
-                  type="button"
+                  activa={correctivo}
+                  onToggle={() => setCorrectivo((v) => !v)}
+                  icono={<Wrench className="w-3.5 h-3.5" />}
+                  etiqueta="Correctivo"
+                />
+                <CasillaClase
                   id="btn-type-otro"
-                  onClick={() => setMaintenanceType('Otro')}
-                  className={`px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                    maintenanceType === 'Otro'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  <MoreHorizontal className="w-3.5 h-3.5" />
-                  <span>Otro</span>
-                </button>
-
+                  activa={otro}
+                  onToggle={() => setOtro((v) => !v)}
+                  icono={<MoreHorizontal className="w-3.5 h-3.5" />}
+                  etiqueta="Otro"
+                />
               </div>
             </div>
 
@@ -474,3 +509,29 @@ export const RegisterTab: React.FC<RegisterTabProps> = ({
     </div>
   );
 };
+
+/* ------------------------------------------------------------------ */
+
+/** Una casilla de clase: se enciende y se apaga de forma independiente. */
+const CasillaClase: React.FC<{
+  id: string;
+  activa: boolean;
+  onToggle: () => void;
+  icono: React.ReactNode;
+  etiqueta: string;
+}> = ({ id, activa, onToggle, icono, etiqueta }) => (
+  <button
+    type="button"
+    id={id}
+    onClick={onToggle}
+    aria-pressed={activa}
+    className={`px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
+      activa
+        ? 'bg-blue-600 text-white shadow-xs'
+        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+    }`}
+  >
+    {icono}
+    <span>{etiqueta}</span>
+  </button>
+);

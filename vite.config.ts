@@ -17,6 +17,16 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // Todo lo que empiece por /api se reenvia al backend de Laravel
+      // (php artisan serve). Asi el navegador ve un mismo origen y no
+      // hay problemas de CORS en desarrollo.
+      proxy: {
+        '/api': {
+          target: process.env.API_BACKEND || 'http://127.0.0.1:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+      },
     },
   };
 });

@@ -1,5 +1,5 @@
 // Service Worker for Clínica del Niño - Gestión Biomédica PWA
-const CACHE_NAME = 'clinica-biomedica-v1';
+const CACHE_NAME = 'clinica-biomedica-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -31,6 +31,14 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Navigation & Static Assets Cache First / Stale While Revalidate
   if (event.request.method !== 'GET') return;
+
+  // Las llamadas a la API NUNCA se cachean: la sincronizacion necesita
+  // hablar con el servidor de verdad, y una respuesta vieja del cache
+  // haria creer a la PWA que un registro ya se guardo cuando no fue asi.
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/api/') || url.pathname.includes('/api/sync')) {
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
