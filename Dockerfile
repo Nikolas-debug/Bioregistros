@@ -37,12 +37,20 @@ COPY backend/composer.json backend/composer.lock ./
 
 # --no-scripts porque artisan todavía no está aquí; el autoload se genera
 # en la etapa final, cuando ya está el código completo.
+#
+# --ignore-platform-reqs porque la imagen composer:2 es minimalista y no
+# trae la extensión gd (la exige phpoffice/phpspreadsheet). Composer solo
+# está descargando paquetes aquí, no ejecutando código PHP que la use; la
+# extensión sí queda instalada en la etapa 3, que es la que de verdad
+# corre la aplicación. Sin esta bandera, "Verifying lock file contents
+# can be installed on current platform" falla el build entero.
 RUN composer install \
     --no-dev \
     --no-scripts \
     --no-autoloader \
     --prefer-dist \
-    --no-interaction
+    --no-interaction \
+    --ignore-platform-reqs
 
 
 # ---------------------------------------------------------------------
