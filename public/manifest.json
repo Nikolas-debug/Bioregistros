@@ -1,12 +1,18 @@
 {
-  "name": "Clínica del Niño - Gestión Biomédica",
-  "short_name": "Biomédica CDN",
-  "description": "PWA para registro de mantenimientos biomédicos con base de datos IndexedDB y exportación anual Excel",
+  "id": "/",
+  "name": "Gestión Biomédica — Clínica del Niño",
+  "short_name": "Biomédica",
+  "description": "Registro de mantenimientos de equipos biomédicos. Funciona sin conexión y sincroniza cuando vuelve la señal.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#f8fafc",
   "theme_color": "#0052cc",
-  "orientation": "portrait",
+  "orientation": "any",
+  "lang": "es-CO",
+  "dir": "ltr",
+  "categories": ["medical", "productivity", "utilities"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -27,11 +33,18 @@
       "purpose": "maskable"
     }
   ],
-  "scope": "/",
-  "lang": "es-CO",
-  "categories": [
-    "medical",
-    "productivity",
-    "utilities"
+  "shortcuts": [
+    {
+      "name": "Registrar mantenimiento",
+      "short_name": "Registrar",
+      "url": "/?ir=registrar",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Ver seguimientos",
+      "short_name": "Seguimientos",
+      "url": "/?ir=documentos",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

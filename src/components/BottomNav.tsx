@@ -13,14 +13,6 @@ const PESTANAS: { id: ActiveTab; etiqueta: string; Icono: typeof LayoutGrid }[] 
   { id: 'documentos', etiqueta: 'Documentos', Icono: FileText },
 ];
 
-/**
- * Barra inferior, solo en pantallas pequeñas.
- *
- * En escritorio se oculta: allí la navegación está en la cabecera, donde
- * el ratón la alcanza sin recorrer toda la pantalla. Una barra pegada al
- * borde inferior de un monitor de 27 pulgadas es un mal sitio para poner
- * los botones principales.
- */
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) => {
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-lg pb-safe">

@@ -18,7 +18,7 @@ const PESTANAS: { id: ActiveTab; etiqueta: string; Icono: typeof LayoutGrid }[] 
   { id: 'documentos', etiqueta: 'Documentos', Icono: FileText },
 ];
 
-/** Iniciales del nombre, para no depender de una foto que no existe. */
+
 function iniciales(nombre: string): string {
   const partes = nombre.trim().split(/\s+/).filter(Boolean);
   if (partes.length === 0) return '?';

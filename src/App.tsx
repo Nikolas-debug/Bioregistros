@@ -18,6 +18,7 @@ import { NewEquipmentModal } from './components/NewEquipmentModal';
 import { BulkImportModal } from './components/BulkImportModal';
 import { InsertarReporteModal } from './components/InsertarReporteModal';
 import { SyncIndicator } from './components/SyncIndicator';
+import { InstalarApp } from './components/InstalarApp';
 import { api, alPerderSesion } from './api/client';
 import { dbManager } from './db/indexedDB';
 import { syncManager } from './sync/syncManager';
@@ -143,6 +144,28 @@ export default function App() {
     setUser((prev) => ({ ...prev, isLoggedIn: false }));
   }), []);
 
+  /**
+   * Atajos del icono instalado.
+   *
+   * Al dejar sostenido el icono en la pantalla de inicio, Android muestra
+   * "Registrar mantenimiento" y "Ver seguimientos". Cada uno abre la
+   * aplicacion con ?ir=... y aqui se traduce a la pestaña que toca.
+   *
+   * La direccion se limpia despues para que recargar no vuelva a
+   * arrastrar al tecnico a la misma pestaña.
+   */
+  useEffect(() => {
+    const destino = new URLSearchParams(window.location.search).get('ir');
+
+    if (destino === 'registrar' || destino === 'documentos' || destino === 'inicio') {
+      setActiveTab(destino as ActiveTab);
+    }
+
+    if (destino) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // Initialize DB and network listeners
   useEffect(() => {
     loadDatabase();
@@ -165,15 +188,38 @@ export default function App() {
       }
     });
 
-    // Register Service Worker for offline PWA caching if supported
-    if ('serviceWorker' in navigator) {
+    // El service worker es lo que hace que la aplicacion se pueda
+    // instalar y que abra sin conexion. Sin el registrado, Android ni
+    // siquiera ofrece el boton de instalar.
+    //
+    // En desarrollo se salta: con Vite el HMR y un service worker
+    // guardando archivos se estorban.
+    let revisarActualizacion: number | undefined;
+
+    // El cast es el mismo que usa api/client.ts: este tsconfig no carga
+    // los tipos de Vite, asi que import.meta.env no esta declarado.
+    const enProduccion = Boolean((import.meta as any).env?.PROD);
+
+    if ('serviceWorker' in navigator && enProduccion) {
       navigator.serviceWorker
         .register('/sw.js')
-        .then((reg) => console.log('PWA Service Worker registrado con éxito:', reg.scope))
-        .catch((err) => console.log('Error registrando Service Worker:', err));
+        .then((registro) => {
+          // Cuando Luis deje la aplicacion abierta durante dias, esto le
+          // trae la version nueva sin que tenga que hacer nada.
+          revisarActualizacion = window.setInterval(
+            () => registro.update().catch(() => {}),
+            60 * 60 * 1000
+          );
+        })
+        .catch(() => {
+          // Sin service worker la aplicacion sigue funcionando: los
+          // registros viven en IndexedDB, no en el cache. Solo se pierde
+          // poder instalarla y abrirla sin señal.
+        });
     }
 
     return () => {
+      if (revisarActualizacion) window.clearInterval(revisarActualizacion);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       detenerSync();
@@ -327,13 +373,20 @@ export default function App() {
   // If not logged in, render login screen
   if (!user.isLoggedIn) {
     return (
-      <LoginScreen
-        onLogin={(perfil) => {
-          setUser({ ...perfil, isLoggedIn: true });
-          dbManager.guardarPreferencia('perfilUsuario', perfil).catch(() => {});
-          syncManager.sincronizar('inicio-sesion').catch(() => {});
-        }}
-      />
+      <>
+        <LoginScreen
+          onLogin={(perfil) => {
+            setUser({ ...perfil, isLoggedIn: true });
+            dbManager.guardarPreferencia('perfilUsuario', perfil).catch(() => {});
+            syncManager.sincronizar('inicio-sesion').catch(() => {});
+          }}
+        />
+
+        {/* Tambien desde la pantalla de ingreso: instalarla antes de
+            entrar es lo mas comodo, y aqui no hay barra inferior que
+            estorbe. */}
+        <InstalarApp />
+      </>
     );
   }
 
@@ -399,6 +452,10 @@ export default function App() {
 
       {/* Bottom Navigation */}
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* Invitacion a instalarla en el telefono. Se muestra sola cuando
+          el navegador lo permite y no esta instalada todavia. */}
+      <InstalarApp />
 
       {/* MODAL: Record Detail View */}
       {selectedRecord && (

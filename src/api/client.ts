@@ -1,11 +1,4 @@
-/**
- * Cliente HTTP hacia el backend Laravel.
- *
- * Toda llamada al servidor pasa por aquí, para que el manejo de errores,
- * los tiempos de espera y la URL base estén en un solo lugar.
- */
 
-/** Se lee de .env  ->  VITE_API_URL=http://localhost:8000/api */
 export const API_URL: string =
   (import.meta as any).env?.VITE_API_URL?.replace(/\/$/, '') || '/api';
 
@@ -154,11 +147,7 @@ async function request<T>(
 /* ------------------------------------------------------------------ */
 
 export interface RespuestaSync {
-  /**
-   * Lo que el servidor guardó. `numero_reporte` es el consecutivo del
-   * seguimiento que asignó PostgreSQL: el celular no puede calcularlo
-   * porque depende de cuántos reportes existan en total.
-   */
+
   aceptados: { uuid: string; id: number; numero_reporte: number | null }[];
   rechazados: {
     uuid: string;
@@ -260,10 +249,7 @@ export const api = {
     return r;
   },
 
-  /**
-   * Verifica que haya servidor de verdad. `navigator.onLine` solo dice que
-   * hay wifi, no que el backend esté vivo — por eso este ping existe.
-   */
+
   async hayServidor(): Promise<boolean> {
     try {
       await request('/sync/ping', { method: 'GET' }, 5000);
