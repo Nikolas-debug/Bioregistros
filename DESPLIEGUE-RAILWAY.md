@@ -30,18 +30,30 @@ Estos archivos ya no aportan. Bórrelos antes de subir el repositorio:
 | `assets/.aistudio/` | Igual |
 | `CONFIGURACION-ENV.txt` | Reemplazado por este documento |
 | `backend/.env.respaldo` | Respaldo de una migración ya terminada |
-| `backend/vendor/` | Se instala en el contenedor (y ya está en `.gitignore`) |
+| `bun.lock` | El proyecto usa npm, no bun |
 
 En PowerShell, desde la carpeta del proyecto:
 
 ```powershell
 Remove-Item -Recurse -Force _archivos-backend, assets\.aistudio -ErrorAction SilentlyContinue
-Remove-Item -Force composer.phar, bun.lock, metadata.json, CONFIGURACION-ENV.txt -ErrorAction SilentlyContinue
+Remove-Item -Force bun.lock, metadata.json, CONFIGURACION-ENV.txt -ErrorAction SilentlyContinue
 Remove-Item -Force backend\.env.respaldo -ErrorAction SilentlyContinue
 ```
 
 Los `.bat` y el `.ps1` **quédeselos**: sirven para levantar el proyecto en
 su computador. El `.dockerignore` ya los excluye de la imagen.
+
+### Lo que NO hay que borrar
+
+| Carpeta o archivo | Por qué se queda |
+|---|---|
+| `backend/vendor/` | Sí, Railway la reconstruye sola — pero es la que hace funcionar `php artisan` **en su computador**. Si la borra, no puede correr migraciones ni crear usuarios en local. Ya está en `.gitignore`, así que no se sube al repositorio de todas formas. |
+| `composer.phar` | Es su única forma de reinstalar `vendor/` si no tiene Composer instalado globalmente. Ocupa 3 MB. También está excluido de la imagen. |
+
+> Si ya borró `backend/vendor/` y ahora `php artisan` falla con
+> `Failed to open stream` señalando archivos dentro de `vendor/`, la
+> reparación está en la sección **Reinstalar `vendor/` en su computador**,
+> al final de este documento.
 
 ### Dependencias que sobraban
 
@@ -131,23 +143,47 @@ LOG_LEVEL=warning
 base de datos del proyecto y se actualiza si cambia la contraseña. Si su
 servicio de PostgreSQL tiene otro nombre, cambie `Postgres` por ese nombre.
 
-### La llave de la aplicación
+### La llave de la aplicación — sin esto no arranca
 
-Laravel cifra las sesiones con `APP_KEY`. Genérela en su computador:
+Laravel cifra las cookies y las sesiones con `APP_KEY`. **Si falta, la
+aplicación devuelve error 500 en todas las direcciones** y el registro se
+llena de:
+
+```
+No application encryption key has been specified.
+```
+
+No se genera sola en el despliegue. Hay que ponerla a mano.
+
+**Opción A — desde su computador**, si `backend/vendor/` ya está instalado:
 
 ```bash
 cd backend
 php artisan key:generate --show
 ```
 
-Copie la salida completa —empieza por `base64:`— y agréguela como variable:
+**Opción B — en PowerShell**, sin necesitar PHP ni Composer:
+
+```powershell
+$bytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+"base64:" + [Convert]::ToBase64String($bytes)
+```
+
+`APP_KEY` no es más que 32 bytes al azar en base64, así que las dos opciones
+producen algo igual de válido.
+
+Copie la salida completa —empieza por `base64:`— y agréguela en **Variables**:
 
 ```
 APP_KEY=base64:loQueSalió...
 ```
 
-> Si `APP_KEY` cambia después, las sesiones abiertas dejan de servir. No la
-> regenere sin necesidad.
+Railway vuelve a desplegar solo al guardar la variable.
+
+> Si `APP_KEY` cambia después, las sesiones abiertas dejan de servir y a Luis
+> le tocará entrar de nuevo en el celular. No la regenere sin necesidad, y
+> guárdela donde guarda las contraseñas.
 
 ---
 
@@ -168,40 +204,70 @@ Con dominio propio: **Custom Domain**, y en su proveedor de DNS un registro
 Las migraciones corren solas en cada despliegue, así que las tablas ya
 existen. Falta el usuario.
 
-Instale la CLI de Railway:
+> **El usuario tiene que quedar en la base de datos de Railway**, que es la
+> que consulta la aplicación cuando Luis entra desde el celular. Crearlo en
+> su PostgreSQL local no sirve para nada allá.
+
+### Forma recomendada: por variables de entorno
+
+No necesita consola, ni SSH, ni PHP en su computador. En el servicio web →
+**Variables**, agregue:
+
+```
+USUARIO_INICIAL_EMAIL=luis@biomedica.local
+USUARIO_INICIAL_NOMBRE=Luis Machado
+USUARIO_INICIAL_CARGO=Ingeniero Biomédico
+USUARIO_INICIAL_INSTITUCION=NOMBRE DE LA CLÍNICA
+USUARIO_INICIAL_PASSWORD=laQueUstedElija
+```
+
+La contraseña debe tener **8 caracteres o más**.
+
+Al guardar, Railway redespliega. En el arranque se ejecuta solo el comando
+`usuario:sembrar`, que crea el usuario. En **Deployments → el último → View
+Logs** debe aparecer:
+
+```
+==> Usuario inicial
+  usuario:sembrar — creado luis@biomedica.local.
+```
+
+**Cuando confirme que Luis ya entra, borre `USUARIO_INICIAL_PASSWORD`** de
+las variables. Las demás pueden quedarse; sin la contraseña el comando no
+hace nada y el usuario sigue existiendo igual.
+
+Para **cambiar la contraseña** más adelante: vuelva a poner la variable con
+el valor nuevo, espere el redespliegue, y bórrela otra vez. Eso cierra la
+sesión abierta en el celular, así que a Luis le tocará entrar de nuevo.
+
+> El comando no toca nada si el usuario ya existe con esos mismos datos.
+> Por eso un redespliegue cualquiera no cierra la sesión de nadie.
+
+### Forma alterna: consola en el contenedor
+
+Si prefiere escribir la contraseña sin que quede guardada en ningún lado:
 
 ```bash
 npm install -g @railway/cli
 railway login
-railway link          # elija el proyecto
+railway link                              # elija proyecto Y servicio
+ssh-keygen -t ed25519                     # una sola vez, si no tiene llave
+railway ssh --service NOMBRE-DEL-SERVICIO
 ```
 
-Y entre al contenedor:
+Confirme con `pwd` que responde `/app` — si responde una ruta de Windows,
+la sesión no se abrió y está en su consola de siempre. Ya adentro:
 
 ```bash
-railway ssh
 php artisan usuario:crear
 ```
 
-Le va a preguntar:
+Pregunta los datos uno por uno y la contraseña no se ve al escribir.
 
-```
-Correo o usuario de acceso  →  luis@biomedica.local
-Nombre completo             →  Luis Machado
-Cargo                       →  Ingeniero Biomédico
-Institución                 →  (el nombre de la clínica)
-Contraseña                  →  (no se ve al escribir)
-Escríbala otra vez          →
-```
+### Forma alterna: contra la base por internet
 
-**La contraseña no queda escrita en ningún archivo del proyecto ni en el
-historial de la consola.** Si se pierde, se vuelve a correr el mismo
-comando y se cambia.
-
-### Si `railway ssh` no está disponible
-
-Use el proxy público de la base de datos desde su computador. En Railway,
-servicio PostgreSQL → Variables → copie `DATABASE_PUBLIC_URL`. Entonces:
+Requiere `backend/vendor/` funcionando en su computador. En Railway,
+servicio PostgreSQL → Variables → copie `DATABASE_PUBLIC_URL`:
 
 ```powershell
 cd backend
@@ -260,6 +326,89 @@ git push
 
 Railway reconstruye y despliega solo. Las migraciones nuevas corren en el
 arranque. Si algo sale mal: **Deployments → el anterior → Redeploy**.
+
+---
+
+## Reinstalar `vendor/` en su computador
+
+Si `php artisan` falla con mensajes como:
+
+```
+Failed to open stream: No such file or directory
+  ...\backend\vendor\composer/../nunomaduro/collision/...
+  ...\backend\vendor\composer/../symfony/error-handler/...
+```
+
+lo que pasa es que la carpeta `vendor/` quedó a medias: el autocargador de
+Composer sigue apuntando a paquetes cuyos archivos ya no están. Pasa cuando
+un borrado recursivo en Windows se atasca en rutas largas y deja la carpeta
+partida por la mitad. **No se repara sobreescribiendo: hay que borrarla
+entera y volver a instalar.**
+
+### 1. Borrarla de verdad
+
+`Remove-Item -Recurse` es el que se atasca. Use el de `cmd`, que no tiene ese
+problema:
+
+```powershell
+cd C:\Users\NRMac\Desktop\gestión-biomédica\backend
+cmd /c "rmdir /s /q vendor"
+```
+
+Confirme que ya no existe:
+
+```powershell
+Test-Path vendor        # debe decir False
+```
+
+### 2. Asegurar que hay Composer
+
+```powershell
+composer --version
+```
+
+Si responde con un número de versión, siga al paso 3. Si dice que no
+reconoce el comando, y tampoco tiene el `composer.phar`, recupérelo:
+
+```powershell
+cd C:\Users\NRMac\Desktop\gestión-biomédica
+php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+php composer-setup.php
+Remove-Item composer-setup.php
+```
+
+Y de ahí en adelante, donde diga `composer` use `php ..\composer.phar`.
+
+### 3. Instalar
+
+```powershell
+cd C:\Users\NRMac\Desktop\gestión-biomédica\backend
+composer install
+```
+
+Tarda unos minutos la primera vez.
+
+**Si se queja de `ext-gd`** (lo pide `phpoffice/phpspreadsheet`), tiene dos
+salidas. La buena es habilitar la extensión: abra el `php.ini` que le indique
+el mensaje, busque `;extension=gd`, quítele el punto y coma, guarde y repita
+el `composer install`. La rápida, si solo necesita correr comandos de artisan
+y no la importación de Excel:
+
+```powershell
+composer install --ignore-platform-reqs
+```
+
+Con esa bandera la importación masiva de `.xlsx` **no va a funcionar en
+local** — en Railway sí, porque la imagen de Docker sí trae `gd`.
+
+### 4. Comprobar
+
+```powershell
+php artisan --version
+```
+
+Si imprime la versión de Laravel, quedó. Ahí ya corren `php artisan migrate`
+y los demás comandos.
 
 ---
 
