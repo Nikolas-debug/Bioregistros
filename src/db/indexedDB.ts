@@ -272,6 +272,70 @@ class IndexedDBManager {
     });
   }
 
+  /**
+   * Guarda lo que vino del servidor.
+   *
+   * Es la otra mitad de la sincronización. Sin esto cada dispositivo solo
+   * ve lo que él mismo subió, porque IndexedDB es privada de cada
+   * navegador: PostgreSQL es la copia compartida y esto la trae al equipo.
+   *
+   * Dos reglas:
+   *  - Lo que está en la bandeja de salida NO se toca. Si el técnico
+   *    escribió algo en el celular y todavía no ha subido, esa versión es
+   *    la buena hasta que el servidor la confirme.
+   *  - Lo que llega queda marcado como `synced` y no entra a la cola: ya
+   *    está en el servidor, volver a subirlo no tendría sentido.
+   */
+  async guardarDesdeServidor(
+    registros: MaintenanceRecord[],
+  ): Promise<{ guardados: number; omitidos: number }> {
+    if (registros.length === 0) return { guardados: 0, omitidos: 0 };
+
+    const db = await this.openDB();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(
+        [STORES.RECORDS, STORES.EQUIPMENTS, STORES.QUEUE],
+        'readwrite',
+      );
+
+      const almacenRegistros = tx.objectStore(STORES.RECORDS);
+      const almacenEquipos = tx.objectStore(STORES.EQUIPMENTS);
+      const cola = tx.objectStore(STORES.QUEUE);
+
+      let guardados = 0;
+      let omitidos = 0;
+
+      registros.forEach((r) => {
+        if (!r?.id) return;
+
+        const enCola = cola.get(r.id);
+
+        enCola.onsuccess = () => {
+          if (enCola.result) {
+            // Hay una versión local sin subir: gana la del dispositivo.
+            omitidos++;
+            return;
+          }
+
+          const registro: MaintenanceRecord = {
+            ...r,
+            syncState: 'synced',
+            syncedAt: Date.now(),
+            syncError: undefined,
+          };
+
+          almacenRegistros.put(registro);
+          almacenEquipos.put(this.equipoDesde(registro));
+          guardados++;
+        };
+      });
+
+      tx.oncomplete = () => resolve({ guardados, omitidos });
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   /* ================================================================== */
   /*  Inventario                                                         */
   /* ================================================================== */

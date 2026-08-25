@@ -17,10 +17,22 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /**
  * Importacion masiva de un seguimiento mensual.
  *
- * Los encabezados que reconoce salen del archivo real
- * "SEGUIMIENTO MAYO 2026": FECHA, REPORTE, EQUIPO, MARCA, MODELO, SERIE,
- * SERVICIO, UBICACION, INVENTARIO, PREVENTIVO, CORRECTIVO, OTRO,
- * DESCRIPCION, OBSERVACIONES, ESTADO, REPUESTOS.
+ * Los encabezados que reconoce salen de los archivos reales de la clinica
+ * (SEGUIMIENTO ENERO ... JULIO 2026): FECHA, REPORTE, EQUIPO, MARCA,
+ * MODELO, SERIE, SERVICIO, UBICACION, INVENTARIO, PREVENTIVO, CORRECTIVO,
+ * OTRO, DESCRIPCION, OBSERVACIONES, ESTADO, REPUESTOS.
+ *
+ * Tres cosas que traen esos archivos y que aqui se resuelven, igual que en
+ * src/utils/excelImport.ts del lado de la PWA:
+ *
+ *  1. El encabezado no siempre esta en la fila 1: enero, febrero y marzo
+ *     abren con un titulo ("INFORME DE GESTION Y SEGUIMIENTO"). Se busca
+ *     entre las primeras filas la que mas se parezca a un encabezado.
+ *  2. Hay columnas con el titulo borrado (SERIE en febrero, INVENTARIO en
+ *     abril). Una columna sin titulo que cae en la posicion que ese campo
+ *     ocupa en el formato de la clinica se rescata.
+ *  3. Cuando varias filas son del mismo dia, la fecha solo se escribe en
+ *     la primera. Las siguientes heredan la de arriba en vez de perderse.
  *
  * Requiere:  composer require phpoffice/phpspreadsheet
  */
@@ -61,6 +73,34 @@ class ImportacionController extends Controller
     /** Columnas que el archivo trae vacias siempre y no aportan nada. */
     private const IGNORADAS = ['registro', 'clase'];
 
+    /**
+     * El orden de columnas del seguimiento de la clinica, tal cual.
+     * Solo se usa para rescatar una columna cuyo titulo quedo en blanco.
+     * Debe coincidir con ORDEN_CANONICO de src/utils/excelImport.ts.
+     */
+    private const ORDEN_CANONICO = [
+        0  => 'fecha',
+        1  => 'numero_reporte',
+        2  => 'equipo',
+        3  => 'marca',
+        4  => 'modelo',
+        5  => 'serie',
+        6  => 'servicio',
+        7  => 'ubicacion',
+        8  => 'inventario',
+        // 9 REGISTRO y 10 CLASE van siempre vacias
+        11 => 'preventivo',
+        12 => 'correctivo',
+        13 => 'otro',
+        14 => 'descripcion',
+        15 => 'observaciones',
+        16 => 'estado',
+        17 => 'repuestos',
+    ];
+
+    /** Cuantas filas del principio se revisan buscando el encabezado. */
+    private const FILAS_A_REVISAR = 15;
+
     public function __construct(private RegistroSyncService $servicio) {}
 
     /**
@@ -100,52 +140,77 @@ class ImportacionController extends Controller
         }
 
         /* --- 1. Encabezados --- */
-        $encabezado = array_shift($filas);
-        $mapa = [];
-        $noReconocidas = [];
+        // La fila de titulos no siempre es la primera.
+        [$filaEncabezado, $mapa, $noReconocidas] = $this->buscarEncabezado($filas);
 
-        foreach ($encabezado as $indice => $titulo) {
-            $clave = $this->normalizarTitulo((string) $titulo);
-
-            if ($clave === '' || in_array($clave, self::IGNORADAS, true)) {
-                continue;
-            }
-
-            if (isset(self::COLUMNAS[$clave])) {
-                $mapa[$indice] = self::COLUMNAS[$clave];
-            } else {
-                $noReconocidas[] = trim((string) $titulo);
-            }
-        }
+        // Columnas sin titulo que caen en su posicion canonica.
+        $porPosicion = $this->completarPorPosicion($mapa, $this->ancho($filas));
 
         $detectadas = array_values($mapa);
         $faltantes = array_diff(['equipo', 'fecha'], $detectadas);
 
         if ($faltantes) {
             return response()->json([
-                'mensaje'   => 'Al archivo le faltan columnas obligatorias: '
-                    . implode(', ', array_map(fn ($f) => strtoupper($f), $faltantes)),
+                'mensaje'   => 'No se reconocio el encabezado del seguimiento: falta '
+                    . implode(' y ', array_map(fn ($f) => strtoupper($f), $faltantes))
+                    . '. Revise que la hoja tenga la fila de titulos (FECHA, REPORTE, EQUIPO...).',
                 'esperadas' => array_values(array_unique(self::COLUMNAS)),
-                'recibidas' => array_values(array_filter($encabezado)),
+                'recibidas' => array_values(array_filter($filas[$filaEncabezado] ?? [])),
             ], 422);
         }
+
+        // Las filas de datos son las que van debajo del encabezado.
+        $datos = array_slice($filas, $filaEncabezado + 1, null, true);
 
         /* --- 2. Fila por fila --- */
         $importados = [];
         $errores = [];
+        $advertencias = [];
         $vistaPrevia = [];
         $reportesVistos = [];
+        $procesadas = 0;
 
-        foreach ($filas as $numero => $fila) {
-            $numeroExcel = $numero + 2;
+        // La fecha de la ultima fila que si la traia.
+        $fechaArrastrada = null;
+        $fechasHeredadas = 0;
+
+        foreach ($datos as $numero => $fila) {
+            $numeroExcel = $numero + 1;
 
             if ($this->filaVacia($fila)) {
                 continue;
             }
 
+            $procesadas++;
+
             $registro = [];
             foreach ($mapa as $indice => $campo) {
                 $registro[$campo] = $fila[$indice] ?? null;
+            }
+
+            /* --- Arrastre de la fecha ---
+            | En el seguimiento, una celda de fecha vacia significa "el
+            | mismo dia de la fila de arriba". Sin esto se perdian 17 de
+            | las 106 filas de marzo.
+            */
+            $fechaCruda = $registro['fecha'] ?? null;
+            $vacia = $fechaCruda === null
+                || (! $fechaCruda instanceof \DateTimeInterface && trim((string) $fechaCruda) === '');
+
+            if ($vacia) {
+                if ($fechaArrastrada !== null) {
+                    $registro['fecha'] = $fechaArrastrada;
+                    $fechasHeredadas++;
+                    $advertencias[] = [
+                        'fila'   => $numeroExcel,
+                        'aviso'  => "Sin fecha propia: se tomo la del {$fechaArrastrada}, de la fila anterior.",
+                    ];
+                }
+            } else {
+                $normalizada = $this->servicio->normalizar($registro)['fecha'] ?? null;
+                if ($normalizada) {
+                    $fechaArrastrada = $normalizada;
+                }
             }
 
             // Un reporte repetido dentro del mismo archivo casi siempre es
@@ -190,15 +255,19 @@ class ImportacionController extends Controller
         }
 
         return response()->json([
-            'simulacion'          => $simular,
-            'columnas_detectadas' => $detectadas,
-            'columnas_ignoradas'  => $noReconocidas,
-            'filas_procesadas'    => count($filas),
-            'importados'          => count($importados),
-            'reportes'            => $importados,
-            'errores'             => $errores,
-            'vista_previa'        => array_slice($vistaPrevia, 0, 100),
-            'mensaje'             => $simular
+            'simulacion'            => $simular,
+            'fila_encabezado'       => $filaEncabezado + 1,
+            'columnas_detectadas'   => $detectadas,
+            'columnas_ignoradas'    => $noReconocidas,
+            'columnas_por_posicion' => $porPosicion,
+            'fechas_heredadas'      => $fechasHeredadas,
+            'filas_procesadas'      => $procesadas,
+            'importados'            => count($importados),
+            'reportes'              => $importados,
+            'errores'               => $errores,
+            'advertencias'          => array_slice($advertencias, 0, 200),
+            'vista_previa'          => array_slice($vistaPrevia, 0, 100),
+            'mensaje'               => $simular
                 ? 'Revision completada. Ningun dato fue guardado todavia.'
                 : sprintf('Se importaron %d registros. %d filas con error.', count($importados), count($errores)),
         ], count($errores) > 0 ? 207 : 200);
@@ -268,6 +337,131 @@ class ImportacionController extends Controller
         }, 'Plantilla_Seguimiento.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Encabezado                                                          */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Mapea una fila como si fuera el encabezado.
+     *
+     * @return array{0: array<int,string>, 1: array<int,string>}
+     */
+    private function mapearFila(array $fila): array
+    {
+        $mapa = [];
+        $noReconocidas = [];
+
+        foreach ($fila as $indice => $titulo) {
+            $clave = $this->normalizarTitulo((string) $titulo);
+
+            if ($clave === '' || in_array($clave, self::IGNORADAS, true)) {
+                continue;
+            }
+
+            if (isset(self::COLUMNAS[$clave])) {
+                // El primer titulo gana: si el archivo repite FECHA al
+                // final, la columna buena sigue siendo la de la izquierda.
+                if (! in_array(self::COLUMNAS[$clave], $mapa, true)) {
+                    $mapa[$indice] = self::COLUMNAS[$clave];
+                }
+            } else {
+                $noReconocidas[] = trim((string) $titulo);
+            }
+        }
+
+        return [$mapa, $noReconocidas];
+    }
+
+    /**
+     * Busca entre las primeras filas la que hace de encabezado.
+     *
+     * Gana la que reconozca mas columnas del seguimiento; tener EQUIPO y
+     * FECHA a la vez pesa mas que cualquier otra cosa.
+     *
+     * @return array{0: int, 1: array<int,string>, 2: array<int,string>}
+     */
+    private function buscarEncabezado(array $filas): array
+    {
+        $mejor = [0, [], []];
+        $mejorPuntaje = -1;
+
+        $indices = array_slice(array_keys($filas), 0, self::FILAS_A_REVISAR);
+
+        foreach ($indices as $i) {
+            [$mapa, $noReconocidas] = $this->mapearFila($filas[$i] ?? []);
+            $campos = array_unique($mapa);
+
+            $puntaje = count($campos);
+            if (in_array('equipo', $campos, true) && in_array('fecha', $campos, true)) {
+                $puntaje += 10;
+            }
+
+            if ($puntaje > $mejorPuntaje) {
+                $mejorPuntaje = $puntaje;
+                $mejor = [$i, $mapa, $noReconocidas];
+            }
+        }
+
+        return $mejor;
+    }
+
+    /**
+     * Rescata columnas cuyo titulo quedo en blanco.
+     *
+     * En febrero la celda del titulo de SERIE esta vacia y la columna trae
+     * las series igual; en abril pasa lo mismo con INVENTARIO.
+     *
+     * @param  array<int,string>  $mapa  se modifica en sitio
+     * @return array<int,array{columna:string,campo:string}>
+     */
+    private function completarPorPosicion(array &$mapa, int $ancho): array
+    {
+        $usados = array_values($mapa);
+        $rescatadas = [];
+
+        foreach (self::ORDEN_CANONICO as $indice => $campo) {
+            if ($indice >= $ancho || isset($mapa[$indice]) || in_array($campo, $usados, true)) {
+                continue;
+            }
+
+            $mapa[$indice] = $campo;
+            $usados[] = $campo;
+            $rescatadas[] = [
+                'columna' => $this->letraColumna($indice),
+                'campo'   => strtoupper($campo),
+            ];
+        }
+
+        ksort($mapa);
+
+        return $rescatadas;
+    }
+
+    /** El ancho real de la hoja, en columnas. */
+    private function ancho(array $filas): int
+    {
+        $ancho = 0;
+        foreach ($filas as $fila) {
+            $ancho = max($ancho, is_array($fila) ? count($fila) : 0);
+        }
+
+        return $ancho;
+    }
+
+    /** 0 -> "A", 5 -> "F", 26 -> "AA". */
+    private function letraColumna(int $indice): string
+    {
+        $letras = '';
+        $n = $indice;
+
+        do {
+            $letras = chr(65 + ($n % 26)) . $letras;
+            $n = intdiv($n, 26) - 1;
+        } while ($n >= 0);
+
+        return $letras;
     }
 
     /**

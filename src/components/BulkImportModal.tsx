@@ -201,13 +201,15 @@ export const BulkImportModal: React.FC<Props> = ({
               <div className="mt-5 rounded-xl bg-slate-50 p-4 text-xs text-slate-600 leading-relaxed">
                 <p className="font-semibold text-slate-800 mb-1">Cómo debe venir el archivo</p>
                 <p>
-                  La primera fila son los encabezados, tal como están en el
-                  seguimiento: FECHA, REPORTE, EQUIPO, MARCA, MODELO, SERIE,
-                  SERVICIO, UBICACIÓN, INVENTARIO, PREVENTIVO, CORRECTIVO, OTRO,
-                  DESCRIPCIÓN, OBSERVACIONES, ESTADO y REPUESTOS. Se reconocen sin
-                  importar mayúsculas, tildes ni el orden. Solo{' '}
-                  <strong>EQUIPO</strong> y <strong>FECHA</strong> son obligatorias.
-                  Las columnas REGISTRO y CLASE se ignoran porque vienen vacías.
+                  Sirve el seguimiento tal como lo llevan: FECHA, REPORTE, EQUIPO,
+                  MARCA, MODELO, SERIE, SERVICIO, UBICACIÓN, INVENTARIO, PREVENTIVO,
+                  CORRECTIVO, OTRO, DESCRIPCIÓN, OBSERVACIONES, ESTADO y REPUESTOS.
+                  Se reconocen sin importar mayúsculas, tildes ni el orden, y no
+                  importa si arriba del encabezado hay un título como “INFORME DE
+                  GESTIÓN”: la fila de títulos se busca sola. Solo{' '}
+                  <strong>EQUIPO</strong> es obligatorio; una fila sin fecha toma la
+                  de la fila de arriba. Las columnas REGISTRO y CLASE se ignoran
+                  porque vienen vacías.
                 </p>
               </div>
             </>
@@ -231,12 +233,36 @@ export const BulkImportModal: React.FC<Props> = ({
               </div>
 
               <p className="text-xs text-slate-500 mb-3">
-                Hoja <strong>{lectura.hojaLeida}</strong> ·{' '}
+                Hoja <strong>{lectura.hojaLeida}</strong> · encabezado en la fila{' '}
+                <strong>{lectura.filaEncabezado}</strong> ·{' '}
                 {lectura.columnasDetectadas.length} columnas reconocidas
                 {lectura.columnasIgnoradas.length > 0 && (
                   <> · ignoradas: {lectura.columnasIgnoradas.join(', ')}</>
                 )}
               </p>
+
+              {/* Lo que el lector tuvo que deducir. Se muestra aparte
+                  porque es lo que conviene revisar de un vistazo antes de
+                  darle importar. */}
+              {(lectura.columnasPorPosicion.length > 0 || lectura.fechasHeredadas > 0) && (
+                <div className="mb-3 space-y-1 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+                  {lectura.columnasPorPosicion.length > 0 && (
+                    <p>
+                      Columnas sin título reconocidas por su posición:{' '}
+                      {lectura.columnasPorPosicion
+                        .map((c) => `${c.columna} → ${c.campo}`)
+                        .join(', ')}
+                      .
+                    </p>
+                  )}
+                  {lectura.fechasHeredadas > 0 && (
+                    <p>
+                      {lectura.fechasHeredadas} fila(s) venían sin fecha y tomaron la
+                      de la fila de arriba, como en el seguimiento en papel.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {lectura.reporteMin && lectura.reporteMax && (
                 <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">

@@ -1,18 +1,29 @@
 /**
- * Gestor de sincronización IndexedDB → Laravel → PostgreSQL.
+ * Gestor de sincronización IndexedDB ↔ Laravel ↔ PostgreSQL.
  *
- * Cómo funciona, en una frase: todo lo que el técnico guarda entra a una
- * bandeja de salida en IndexedDB; este módulo la vacía contra el servidor
- * y borra de IndexedDB únicamente lo que el servidor confirmó por id.
+ * Va en las dos direcciones, y esa es la parte importante:
+ *
+ *   SUBIDA — todo lo que el técnico guarda entra a una bandeja de salida
+ *            en IndexedDB; este módulo la vacía contra el servidor y saca
+ *            de la cola únicamente lo que el servidor confirmó.
+ *
+ *   BAJADA — antes de subir se le pregunta al servidor qué cambió desde la
+ *            última vez, y eso se guarda en IndexedDB. Sin esta mitad cada
+ *            dispositivo solo ve lo que él mismo subió: IndexedDB es
+ *            privada de cada navegador, PostgreSQL es la copia compartida.
+ *            Es lo que hace que el mismo usuario vea los mismos registros
+ *            desde el celular y desde el PC.
  *
  * Reglas que sostienen el diseño:
  *  1. Nada se borra del celular sin confirmación explícita del servidor.
  *  2. El id lo genera el celular, y el servidor hace upsert por ese id.
  *     Reenviar un registro no lo duplica, así que un corte de red a mitad
  *     de camino es inofensivo.
- *  3. Un registro rechazado se queda en la cola con el motivo anotado;
+ *  3. La bajada no pisa lo que está en la bandeja de salida: la versión
+ *     del dispositivo manda hasta que el servidor la confirme.
+ *  4. Un registro rechazado se queda en la cola con el motivo anotado;
  *     no bloquea a los demás del lote.
- *  4. Se reintenta con espera creciente para no castigar al servidor ni
+ *  5. Se reintenta con espera creciente para no castigar al servidor ni
  *     a la batería del celular.
  */
 
@@ -32,6 +43,15 @@ const ESPERAS = [0, 30_000, 120_000, 600_000, 1_800_000]; // 0s, 30s, 2m, 10m, 3
 /** Tras este número de intentos se deja de reintentar solo; hay que revisarlo. */
 const MAX_INTENTOS = 8;
 
+/** Cuántos registros trae cada lote de bajada. */
+const TAMANO_BAJADA = 1000;
+
+/** Tope de lotes por corrida, para que un reloj torcido no gire eterno. */
+const MAX_LOTES_BAJADA = 20;
+
+/** Dónde queda anotada la hora de la última bajada. */
+const CLAVE_MARCADOR = 'ultimaBajada';
+
 export type EstadoSync = 'inactivo' | 'sincronizando' | 'sin-conexion' | 'error';
 
 export interface InstantaneaSync {
@@ -40,6 +60,12 @@ export interface InstantaneaSync {
   ultimoResultado: ResultadoSync | null;
   ultimaSincronizacion: number | null;
   hayServidor: boolean;
+  /**
+   * Cambia cada vez que los datos locales cambian (bajada o confirmación
+   * de subida). La interfaz lo usa para saber cuándo releer IndexedDB sin
+   * quedarse recargando en vano.
+   */
+  selloDatos: number;
 }
 
 type Oyente = (s: InstantaneaSync) => void;
@@ -50,6 +76,7 @@ class SyncManager {
   private ultimoResultado: ResultadoSync | null = null;
   private ultimaSincronizacion: number | null = null;
   private hayServidor = false;
+  private selloDatos = 0;
 
   private oyentes = new Set<Oyente>();
   private temporizador: number | null = null;
@@ -124,6 +151,7 @@ class SyncManager {
       ultimoResultado: this.ultimoResultado,
       ultimaSincronizacion: this.ultimaSincronizacion,
       hayServidor: this.hayServidor,
+      selloDatos: this.selloDatos,
     };
   }
 
@@ -173,21 +201,35 @@ class SyncManager {
       mensaje,
     });
 
-    // 1. ¿Hay algo que enviar?
+    // 1. ¿Qué hay en la bandeja de salida?
     const colaCompleta = await dbManager.obtenerCola(1000);
     this.pendientes = colaCompleta.length;
 
-    if (colaCompleta.length === 0) {
+    // 1.5. Sin sesión no se sincroniza.
+    // No es solo que el servidor responda 401: sin este freno, cada
+    // registro pendiente sumaría un intento fallido mientras nadie ha
+    // entrado, y terminaría agotando los reintentos sin culpa de nadie.
+    if (!api.hayToken()) {
       this.cambiarEstado('inactivo');
-      return vacio('No hay registros pendientes.');
+      return vacio(
+        colaCompleta.length
+          ? `${colaCompleta.length} registro(s) esperando a que alguien inicie sesión.`
+          : 'Sin sesión iniciada.',
+      );
     }
 
     // 2. ¿Hay red?
+    // Ojo: aunque no haya nada que subir, sí puede haber algo que bajar.
+    // Por eso la revisión de red va antes de mirar si la cola está vacía.
     if (!navigator.onLine) {
       this.cambiarEstado('sin-conexion');
       return {
-        ...vacio(`Sin conexión. ${colaCompleta.length} registro(s) esperando.`),
-        ok: false,
+        ...vacio(
+          colaCompleta.length
+            ? `Sin conexión. ${colaCompleta.length} registro(s) esperando.`
+            : 'Sin conexión.',
+        ),
+        ok: colaCompleta.length === 0,
       };
     }
 
@@ -199,28 +241,56 @@ class SyncManager {
       this.cambiarEstado('sin-conexion');
       return {
         ...vacio(
-          `No se pudo contactar el servidor. ${colaCompleta.length} registro(s) esperando.`,
+          colaCompleta.length
+            ? `No se pudo contactar el servidor. ${colaCompleta.length} registro(s) esperando.`
+            : 'No se pudo contactar el servidor.',
         ),
         ok: false,
       };
     }
 
-    // 4. Solo los que ya cumplieron su tiempo de espera de reintento.
+    // 4. BAJADA: lo que otros dispositivos (o este mismo, desde el otro
+    //    equipo) subieron desde la última vez.
+    const descargados = await this.bajar();
+
+    // 5. ¿Hay algo que subir?
+    if (colaCompleta.length === 0) {
+      this.ultimaSincronizacion = Date.now();
+      this.cambiarEstado('inactivo');
+
+      const resultado: ResultadoSync = {
+        ...vacio(
+          descargados > 0
+            ? `${descargados} registro(s) traídos del servidor.`
+            : 'Todo al día.',
+        ),
+        descargados,
+      };
+
+      this.ultimoResultado = resultado;
+      this.avisar();
+      return resultado;
+    }
+
+    // 6. Solo los que ya cumplieron su tiempo de espera de reintento.
     const ahora = Date.now();
     const listos = colaCompleta.filter((item) => this.tocaReintentar(item, ahora));
 
     if (listos.length === 0) {
       this.cambiarEstado('inactivo');
-      return vacio(
-        `${colaCompleta.length} registro(s) en espera de reintento programado.`,
-      );
+      return {
+        ...vacio(
+          `${colaCompleta.length} registro(s) en espera de reintento programado.`,
+        ),
+        descargados,
+      };
     }
 
     console.info(
       `[sync] ${motivo}: enviando ${listos.length} de ${colaCompleta.length} pendientes`,
     );
 
-    // 5. Envío por lotes.
+    // 7. Envío por lotes.
     let guardados = 0;
     let fallidos = 0;
     const erroresVisibles: { id: string; detalle: string }[] = [];
@@ -279,20 +349,25 @@ class SyncManager {
       }
     }
 
+    if (guardados > 0) this.selloDatos = Date.now();
+
     await this.refrescarPendientes();
     this.ultimaSincronizacion = Date.now();
     this.cambiarEstado(fallidos > 0 ? 'error' : 'inactivo');
+
+    const traidos = descargados > 0 ? ` ${descargados} traído(s) del servidor.` : '';
 
     const resultado: ResultadoSync = {
       ok: fallidos === 0,
       enviados: listos.length,
       guardados,
       fallidos,
+      descargados,
       pendientes: this.pendientes,
       mensaje:
         fallidos === 0
-          ? `${guardados} registro(s) guardados en el servidor.`
-          : `${guardados} guardados, ${fallidos} con problemas. Quedan ${this.pendientes} en el dispositivo.`,
+          ? `${guardados} registro(s) guardados en el servidor.${traidos}`
+          : `${guardados} guardados, ${fallidos} con problemas. Quedan ${this.pendientes} en el dispositivo.${traidos}`,
       errores: erroresVisibles.slice(0, 20),
     };
 
@@ -300,6 +375,88 @@ class SyncManager {
     this.avisar();
 
     return resultado;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /*  Bajada                                                           */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Trae del servidor lo que cambió desde la última bajada y lo guarda en
+   * IndexedDB.
+   *
+   * El marcador es la hora que reporta el servidor, no la del dispositivo:
+   * el reloj de un celular puede estar corrido y eso dejaría registros sin
+   * bajar para siempre. Se le restan dos minutos de holgura por si alguna
+   * escritura quedó justo en el borde; volver a bajar un registro que ya
+   * está no cuesta nada, porque se guarda por id.
+   *
+   * Si algo falla no se toca el marcador: la próxima corrida lo reintenta.
+   *
+   * @returns cuántos registros quedaron guardados en el dispositivo.
+   */
+  private async bajar(): Promise<number> {
+    try {
+      let desde = await dbManager.leerPreferencia<string | null>(CLAVE_MARCADOR, null);
+      let total = 0;
+      let marcador: string | null = null;
+
+      for (let lote = 0; lote < MAX_LOTES_BAJADA; lote++) {
+        const respuesta = await api.descargar(desde ?? undefined, TAMANO_BAJADA);
+        const registros = respuesta?.registros ?? [];
+
+        if (registros.length > 0) {
+          const { guardados } = await dbManager.guardarDesdeServidor(registros);
+          total += guardados;
+        }
+
+        marcador = respuesta?.servidor_hora ?? marcador;
+
+        if (!respuesta?.hay_mas || !respuesta?.siguiente_desde) break;
+        desde = respuesta.siguiente_desde;
+      }
+
+      if (marcador) {
+        // Dos minutos de holgura contra escrituras en el borde del corte.
+        const conHolgura = new Date(
+          new Date(marcador).getTime() - 2 * 60_000,
+        ).toISOString();
+
+        await dbManager.guardarPreferencia(CLAVE_MARCADOR, conHolgura);
+      }
+
+      if (total > 0) {
+        this.selloDatos = Date.now();
+        console.info(`[sync] bajada: ${total} registro(s) del servidor`);
+      }
+
+      return total;
+    } catch (e) {
+      // Que falle la bajada no debe impedir la subida: lo que el técnico
+      // tiene sin subir es lo que no se puede perder.
+      console.warn('[sync] no se pudo bajar del servidor:', e);
+      return 0;
+    }
+  }
+
+  /**
+   * Vuelve a traer TODO el historial del servidor, ignorando el marcador.
+   *
+   * Es el botón de "no me aparecen los registros del otro dispositivo":
+   * cuesta una descarga completa, pero deja la copia local igual a la del
+   * servidor.
+   */
+  async bajarTodo(): Promise<number> {
+    await dbManager.guardarPreferencia(CLAVE_MARCADOR, null);
+
+    if (!navigator.onLine || !(await api.hayServidor())) {
+      throw new ApiError('No hay conexión con el servidor.', 0, null);
+    }
+
+    const total = await this.bajar();
+    this.avisar();
+
+    return total;
   }
 
   /** Espera creciente: 0s, 30s, 2m, 10m, 30m, y de ahí en adelante 30m. */

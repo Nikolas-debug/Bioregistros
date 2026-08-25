@@ -227,6 +227,8 @@ export interface ResultadoSync {
   enviados: number;
   guardados: number;
   fallidos: number;
+  /** Registros traídos del servidor en esta corrida (la otra mitad). */
+  descargados?: number;
   pendientes: number;
   mensaje: string;
   errores?: { id: string; detalle: string }[];

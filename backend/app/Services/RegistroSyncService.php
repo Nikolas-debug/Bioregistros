@@ -260,7 +260,13 @@ class RegistroSyncService
         return $valor === '' ? null : $valor;
     }
 
-    /** Reconoce X, x, SI, 1, true... como casilla marcada. */
+    /**
+     * Reconoce X, x, SI, 1, true... como casilla marcada.
+     *
+     * Una letra suelta cualquiera tambien cuenta: en el seguimiento de
+     * enero hay un "Z" en la casilla de correctivo, que es la X escrita
+     * con la tecla de al lado. Descartarla clasificaria mal el registro.
+     */
     private function marcada($valor): bool
     {
         if ($valor === null) {
@@ -272,10 +278,22 @@ class RegistroSyncService
 
         $v = mb_strtolower(trim((string) $valor));
 
-        return in_array($v, ['x', 'si', 'sí', '1', 'true', 'v', 'ok'], true);
+        if (in_array($v, ['x', 'si', 'sí', '1', 'true', 'v', 'ok'], true)) {
+            return true;
+        }
+
+        return mb_strlen($v) === 1 && preg_match('/^\p{L}$/u', $v) === 1;
     }
 
-    /** Acepta serial de Excel, d/m/Y, Y-m-d y objetos de fecha. */
+    /**
+     * Acepta serial de Excel, d/m/Y, d.m.Y, Y-m-d y objetos de fecha.
+     *
+     * Los seguimientos de enero y febrero escriben la fecha con puntos
+     * (08.01.2026). Esa forma se resuelve aqui a mano y siempre como
+     * dia.mes.anio, que es como se escribe en Colombia: dejarsela a
+     * strtotime o al navegador es como termina un 8 de enero convertido en
+     * 1 de agosto.
+     */
     private function fecha($valor): ?string
     {
         if ($valor === null || $valor === '') {
@@ -290,17 +308,50 @@ class RegistroSyncService
             return Carbon::create(1899, 12, 30)->addDays((int) $valor)->format('Y-m-d');
         }
 
-        $valor = trim((string) $valor);
+        // El punto o la coma sobrantes al final ("17-07-2026.") son de
+        // teclear rapido, no cambian la fecha.
+        $valor = preg_replace('/[.,;\s]+$/', '', trim((string) $valor));
 
-        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y', 'Y/m/d', 'd/m/y'] as $formato) {
-            try {
-                $fecha = Carbon::createFromFormat($formato, $valor);
-                if ($fecha && $fecha->format($formato) === $valor) {
-                    return $fecha->format('Y-m-d');
-                }
-            } catch (\Throwable) {
-                // sigue con el siguiente formato
+        // AAAA-MM-DD, AAAA/MM/DD, AAAA.MM.DD (con o sin hora detras)
+        if (preg_match('/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/', $valor, $m)) {
+            [$anio, $mes, $dia] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+
+            return checkdate($mes, $dia, $anio)
+                ? sprintf('%04d-%02d-%02d', $anio, $mes, $dia)
+                : null;
+        }
+
+        // DD/MM/AAAA, DD-MM-AAAA, DD.MM.AAAA. Dia primero, siempre.
+        if (preg_match('/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,5})$/', $valor, $m)) {
+            $anio = $m[3];
+
+            if (strlen($anio) === 2) {
+                $anio = '20' . $anio;
             }
+
+            // "18.02.20026": un cero de mas al teclear el anio. No hay
+            // otra lectura posible, asi que se corrige en vez de perder
+            // la fila.
+            if (strlen($anio) === 5 && str_starts_with($anio, '200')) {
+                $anio = '20' . substr($anio, 3);
+            }
+
+            if (strlen($anio) !== 4) {
+                return null;
+            }
+
+            $anio = (int) $anio;
+            [$dia, $mes] = [(int) $m[1], (int) $m[2]];
+
+            return checkdate($mes, $dia, $anio)
+                ? sprintf('%04d-%02d-%02d', $anio, $mes, $dia)
+                : null;
+        }
+
+        // Lo que empieza por numero ya se intento arriba; dejarselo a
+        // Carbon solo abre la puerta a que invierta dia y mes.
+        if (preg_match('/^\d/', $valor)) {
+            return null;
         }
 
         try {

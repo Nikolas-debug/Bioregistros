@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
 import { LoginScreen } from './components/LoginScreen';
@@ -67,6 +67,10 @@ export default function App() {
 
   // Offline / Network Status
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  // Ultimo "sello" de datos visto del syncManager. Cambia cuando la
+  // bajada trae registros del servidor o cuando una subida se confirma.
+  const selloDatos = useRef(0);
 
   // Modals state
   const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | null>(null);
@@ -180,9 +184,16 @@ export default function App() {
     // Devuelve su propia funcion de limpieza (listeners e intervalos).
     const detenerSync = syncManager.iniciar();
 
-    // Cada vez que la cola cambia, refrescamos la vista para que los
-    // registros pasen de "pendiente" a "sincronizado" sin recargar.
+    // Cada vez que los datos locales cambian -porque la cola se vacio o
+    // porque la bajada trajo registros del otro dispositivo- se vuelve a
+    // leer IndexedDB. El sello evita recargar en vano en cada latido.
     const dejarDeEscuchar = syncManager.suscribir((estado) => {
+      if (estado.selloDatos !== selloDatos.current) {
+        selloDatos.current = estado.selloDatos;
+        loadDatabase();
+        return;
+      }
+
       if (estado.estado === 'inactivo' && estado.pendientes === 0) {
         loadDatabase();
       }
@@ -257,8 +268,32 @@ export default function App() {
     setSelectedRecord(updated);
   };
 
-  // Handler: Delete Record
+  /**
+   * Borrar un registro.
+   *
+   * Desde que la aplicacion baja lo que hay en PostgreSQL, borrar solo en
+   * el dispositivo no sirve de nada: la siguiente bajada lo traeria de
+   * vuelta. Si el registro ya esta en el servidor, primero se borra alla;
+   * si eso falla, no se borra aqui tampoco, para no mostrar algo distinto
+   * de lo que hay.
+   */
   const handleDeleteRecord = async (id: string) => {
+    const registro = await dbManager.getRecordById(id);
+
+    if (registro?.idServidor) {
+      try {
+        await api.eliminarMantenimiento(registro.idServidor);
+      } catch {
+        alert(
+          'No se pudo borrar el registro en el servidor.\n\n' +
+          'Se deja como esta: si se borrara solo en este dispositivo, ' +
+          'volveria a aparecer en la proxima sincronizacion. Intentelo de ' +
+          'nuevo cuando haya conexion.'
+        );
+        return;
+      }
+    }
+
     await dbManager.deleteRecord(id);
     await loadDatabase();
     setSelectedRecord(null);

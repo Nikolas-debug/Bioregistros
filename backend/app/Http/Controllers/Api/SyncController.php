@@ -114,45 +114,78 @@ class SyncController extends Controller
     }
 
     /**
-     * GET /api/sync/descargar?desde=2026-01-01
-     * Segunda direccion de la sincronizacion: util cuando el tecnico cambia
-     * de celular y necesita ver el historial.
+     * GET /api/sync/descargar?desde=2026-05-01T12:00:00Z&limite=1000
+     *
+     * La otra direccion de la sincronizacion, y la que hace que la base
+     * sea de verdad compartida: aqui no se filtra por usuario ni por
+     * dispositivo. Quien tenga sesion ve el mismo historial, entre desde
+     * el celular o desde el PC. IndexedDB es la copia local de cada
+     * equipo; esto es lo que la pone al dia.
+     *
+     * Se devuelve ordenado por `updated_at` ascendente para poder
+     * paginar: mientras `hay_mas` sea true, el cliente vuelve a pedir
+     * desde `siguiente_desde`.
+     *
+     * Los nombres de los campos son los de MaintenanceRecord de la PWA
+     * (`id`, `specificLocation`, `failureComments`...), no los de la
+     * tabla: lo que sale de aqui se guarda tal cual en IndexedDB, y el
+     * `id` es la llave de ese almacen.
      */
     public function descargar(Request $request): JsonResponse
     {
-        $consulta = Mantenimiento::with('dispositivo')
-            ->orderBy('numero_reporte', 'desc');
+        $limite = max(1, min((int) $request->query('limite', 1000), 2000));
+        $desde  = $request->query('desde');
 
-        if ($desde = $request->query('desde')) {
+        $consulta = Mantenimiento::with('dispositivo');
+
+        if ($desde) {
             $consulta->where('updated_at', '>=', $desde);
         }
 
+        // Se pide uno de mas para saber si quedaron registros por fuera.
+        $registros = $consulta
+            ->orderBy('updated_at')
+            ->orderBy('id')
+            ->limit($limite + 1)
+            ->get();
+
+        $hayMas = $registros->count() > $limite;
+        $registros = $registros->take($limite);
+
+        $siguienteDesde = $hayMas && $registros->isNotEmpty()
+            ? optional($registros->last()->updated_at)->toIso8601String()
+            : null;
+
         return response()->json([
-            'registros' => $consulta->limit(2000)->get()->map(fn ($m) => [
-                'uuid'           => $m->uuid,
-                'idServidor'     => $m->id,
-                'numeroReporte'  => $m->numero_reporte,
-                'equipment'      => $m->dispositivo?->equipo,
-                'brand'          => $m->dispositivo?->marca,
-                'model'          => $m->dispositivo?->modelo,
-                'serialNumber'   => $m->dispositivo?->serie,
-                'inventoryCode'  => $m->dispositivo?->inventario,
-                'service'        => $m->servicio ?? $m->dispositivo?->servicio,
-                'location'       => $m->ubicacion ?? $m->dispositivo?->ubicacion,
-                'date'           => $m->fecha?->format('Y-m-d'),
-                'time'           => $m->hora,
-                'preventivo'     => $m->preventivo,
-                'correctivo'     => $m->correctivo,
-                'otro'           => $m->otro,
-                'description'    => $m->descripcion,
-                'observations'   => $m->observaciones,
-                'status'         => $m->estado,
-                'spareParts'     => $m->repuestos,
-                'technicianName' => $m->tecnico,
-                'createdAt'      => ($m->creado_en_dispositivo ?? $m->created_at)->getTimestampMs(),
-                'updatedAt'      => $m->updated_at->getTimestampMs(),
-                'syncState'      => 'synced',
-            ]),
+            'total'           => $registros->count(),
+            'hay_mas'         => $hayMas,
+            'siguiente_desde' => $siguienteDesde,
+            'registros'       => $registros->map(fn ($m) => [
+                'id'                     => $m->uuid,
+                'idServidor'             => $m->id,
+                'numeroReporte'          => $m->numero_reporte,
+                'equipment'              => $m->dispositivo?->equipo ?? '',
+                'brand'                  => $m->dispositivo?->marca ?? '',
+                'model'                  => $m->dispositivo?->modelo ?? '',
+                'serialNumber'           => $m->dispositivo?->serie ?? '',
+                'inventoryCode'          => $m->dispositivo?->inventario ?? '',
+                'service'                => $m->servicio ?? $m->dispositivo?->servicio ?? '',
+                'specificLocation'       => $m->ubicacion ?? $m->dispositivo?->ubicacion ?? '',
+                'date'                   => $m->fecha?->format('Y-m-d') ?? '',
+                'time'                   => $m->hora,
+                'preventivo'             => (bool) $m->preventivo,
+                'correctivo'             => (bool) $m->correctivo,
+                'otro'                   => (bool) $m->otro,
+                'failureComments'        => $m->descripcion ?? '',
+                'additionalObservations' => $m->observaciones ?? '',
+                'finalStatus'            => $m->estado ?? '',
+                'spareParts'             => $m->repuestos ?? '',
+                'technicianName'         => $m->tecnico ?? '',
+                'origen'                 => $m->origen,
+                'createdAt'              => ($m->creado_en_dispositivo ?? $m->created_at)->getTimestampMs(),
+                'updatedAt'              => $m->updated_at->getTimestampMs(),
+                'syncState'              => 'synced',
+            ])->values(),
             'servidor_hora' => now()->toIso8601String(),
         ]);
     }

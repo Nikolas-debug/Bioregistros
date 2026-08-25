@@ -158,6 +158,18 @@ export interface RespuestaSync {
   resumen: { recibidos: number; guardados: number; fallidos: number };
 }
 
+/** Lo que devuelve GET /sync/descargar. */
+export interface RespuestaDescarga {
+  registros: any[];
+  /** Hora del servidor: es el marcador para la próxima bajada. */
+  servidor_hora: string;
+  /** true si el lote se llenó y faltan registros por traer. */
+  hay_mas?: boolean;
+  /** Desde dónde pedir el siguiente lote. */
+  siguiente_desde?: string | null;
+  total?: number;
+}
+
 export interface RespuestaImportacion {
   simulacion: boolean;
   columnas_detectadas: string[];
@@ -272,10 +284,26 @@ export const api = {
     return request('/sync/estado');
   },
 
-  /** Trae del servidor los registros actualizados desde una fecha. */
-  descargar(desde?: string): Promise<{ registros: any[] }> {
-    const q = desde ? `?desde=${encodeURIComponent(desde)}` : '';
-    return request(`/sync/descargar${q}`);
+  /**
+   * Trae del servidor los registros modificados desde una fecha.
+   *
+   * Es lo que hace que el mismo usuario vea lo mismo en el celular y en el
+   * PC: la base del servidor es una sola y compartida; IndexedDB es solo
+   * la copia de cada dispositivo.
+   *
+   * `hay_mas` avisa que quedaron registros por fuera del lote y hay que
+   * volver a pedir desde `siguiente_desde`.
+   */
+  descargar(desde?: string, limite = 1000): Promise<RespuestaDescarga> {
+    const q = new URLSearchParams();
+    if (desde) q.set('desde', desde);
+    q.set('limite', String(limite));
+
+    return request<RespuestaDescarga>(
+      `/sync/descargar?${q.toString()}`,
+      {},
+      60000, // el primer barrido de un dispositivo nuevo puede traer miles
+    );
   },
 
   /** Sube un Excel al servidor. Con simular=true solo valida. */
@@ -327,6 +355,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ desde, simular }),
     });
+  },
+
+  /**
+   * Borra un mantenimiento del servidor.
+   *
+   * Hace falta desde que la aplicación baja lo que hay en PostgreSQL: si
+   * solo se borrara en el dispositivo, la siguiente bajada lo traería de
+   * vuelta. `cerrarHueco` corre los consecutivos posteriores.
+   */
+  eliminarMantenimiento(idServidor: number, cerrarHueco = false): Promise<any> {
+    return request(
+      `/mantenimientos/${idServidor}${cerrarHueco ? '?cerrar_hueco=1' : ''}`,
+      { method: 'DELETE' },
+    );
   },
 
   listarMantenimientos(params: Record<string, any> = {}): Promise<any> {
