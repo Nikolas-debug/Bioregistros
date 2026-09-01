@@ -402,10 +402,10 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
 
       {/* Pagination Footer matching Image 3 */}
       {filteredRecords.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center justify-between text-xs text-slate-600 shadow-2xs">
+        <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center justify-between text-xs text-slate-600 shadow-2xs overflow-x-auto">
           <div>
-            Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredRecords.length)}-
-            {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {filteredRecords.length} records
+            Mostrando {Math.min((currentPage - 1) * itemsPerPage + 1, filteredRecords.length)}-
+            {Math.min(currentPage * itemsPerPage, filteredRecords.length)} de {filteredRecords.length} registros
           </div>
 
           <div className="flex items-center gap-1">
