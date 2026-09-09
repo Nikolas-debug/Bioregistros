@@ -174,84 +174,111 @@ class ImportacionController extends Controller
         $fechaArrastrada = null;
         $fechasHeredadas = 0;
 
-        foreach ($datos as $numero => $fila) {
-            $numeroExcel = $numero + 1;
+        /* --- Precarga para todo el archivo ---
+        | Guardar fila por fila cuesta media docena de consultas cada una.
+        | Con la base en otra maquina eso son otros tantos viajes por la
+        | red, y un seguimiento de setecientas filas no alcanza a terminar
+        | dentro del tiempo que PHP le da a la peticion. Esto hace esas
+        | busquedas una sola vez para todas las filas.
+        */
+        if (! $simular) {
+            $this->servicio->abrirLote(array_map(
+                function ($fila) use ($mapa) {
+                    $r = [];
+                    foreach ($mapa as $indice => $campo) {
+                        $r[$campo] = $fila[$indice] ?? null;
+                    }
 
-            if ($this->filaVacia($fila)) {
-                continue;
-            }
+                    return $r;
+                },
+                array_values(array_filter($datos, fn ($f) => ! $this->filaVacia($f))),
+            ));
+        }
 
-            $procesadas++;
+        try {
 
-            $registro = [];
-            foreach ($mapa as $indice => $campo) {
-                $registro[$campo] = $fila[$indice] ?? null;
-            }
+            foreach ($datos as $numero => $fila) {
+                $numeroExcel = $numero + 1;
 
-            /* --- Arrastre de la fecha ---
-            | En el seguimiento, una celda de fecha vacia significa "el
-            | mismo dia de la fila de arriba". Sin esto se perdian 17 de
-            | las 106 filas de marzo.
-            */
-            $fechaCruda = $registro['fecha'] ?? null;
-            $vacia = $fechaCruda === null
-                || (! $fechaCruda instanceof \DateTimeInterface && trim((string) $fechaCruda) === '');
-
-            if ($vacia) {
-                if ($fechaArrastrada !== null) {
-                    $registro['fecha'] = $fechaArrastrada;
-                    $fechasHeredadas++;
-                    $advertencias[] = [
-                        'fila'   => $numeroExcel,
-                        'aviso'  => "Sin fecha propia: se tomo la del {$fechaArrastrada}, de la fila anterior.",
-                    ];
+                if ($this->filaVacia($fila)) {
+                    continue;
                 }
-            } else {
-                $normalizada = $this->servicio->normalizar($registro)['fecha'] ?? null;
-                if ($normalizada) {
-                    $fechaArrastrada = $normalizada;
-                }
-            }
 
-            // Un reporte repetido dentro del mismo archivo casi siempre es
-            // un error de digitacion, y dejarlo pasar romperia la
-            // numeracion. Se detiene la fila, no el archivo entero.
-            $rep = $registro['numero_reporte'] ?? null;
-            if (is_numeric($rep)) {
-                $rep = (int) $rep;
-                if (isset($reportesVistos[$rep])) {
+                $procesadas++;
+
+                $registro = [];
+                foreach ($mapa as $indice => $campo) {
+                    $registro[$campo] = $fila[$indice] ?? null;
+                }
+
+                /* --- Arrastre de la fecha ---
+                | En el seguimiento, una celda de fecha vacia significa "el
+                | mismo dia de la fila de arriba". Sin esto se perdian 17 de
+                | las 106 filas de marzo.
+                */
+                $fechaCruda = $registro['fecha'] ?? null;
+                $vacia = $fechaCruda === null
+                    || (! $fechaCruda instanceof \DateTimeInterface && trim((string) $fechaCruda) === '');
+
+                if ($vacia) {
+                    if ($fechaArrastrada !== null) {
+                        $registro['fecha'] = $fechaArrastrada;
+                        $fechasHeredadas++;
+                        $advertencias[] = [
+                            'fila'   => $numeroExcel,
+                            'aviso'  => "Sin fecha propia: se tomo la del {$fechaArrastrada}, de la fila anterior.",
+                        ];
+                    }
+                } else {
+                    $normalizada = $this->servicio->normalizar($registro)['fecha'] ?? null;
+                    if ($normalizada) {
+                        $fechaArrastrada = $normalizada;
+                    }
+                }
+
+                // Un reporte repetido dentro del mismo archivo casi siempre es
+                // un error de digitacion, y dejarlo pasar romperia la
+                // numeracion. Se detiene la fila, no el archivo entero.
+                $rep = $registro['numero_reporte'] ?? null;
+                if (is_numeric($rep)) {
+                    $rep = (int) $rep;
+                    if (isset($reportesVistos[$rep])) {
+                        $errores[] = [
+                            'fila'    => $numeroExcel,
+                            'equipo'  => (string) ($registro['equipo'] ?? ''),
+                            'errores' => ["El reporte {$rep} ya aparece en la fila {$reportesVistos[$rep]}."],
+                        ];
+                        continue;
+                    }
+                    $reportesVistos[$rep] = $numeroExcel;
+                }
+
+                try {
+                    if ($simular) {
+                        $vistaPrevia[] = ['fila' => $numeroExcel]
+                            + $this->servicio->normalizar($registro);
+                        continue;
+                    }
+
+                    $mantenimiento = $this->servicio->guardar($registro, 'excel');
+                    $importados[] = $mantenimiento->numero_reporte;
+                } catch (ValidationException $e) {
                     $errores[] = [
                         'fila'    => $numeroExcel,
-                        'equipo'  => (string) ($registro['equipo'] ?? ''),
-                        'errores' => ["El reporte {$rep} ya aparece en la fila {$reportesVistos[$rep]}."],
+                        'equipo'  => (string) ($registro['equipo'] ?? '(sin nombre)'),
+                        'errores' => collect($e->errors())->flatten()->all(),
                     ];
-                    continue;
+                } catch (\Throwable $e) {
+                    $errores[] = [
+                        'fila'    => $numeroExcel,
+                        'equipo'  => (string) ($registro['equipo'] ?? '(sin nombre)'),
+                        'errores' => [$e->getMessage()],
+                    ];
                 }
-                $reportesVistos[$rep] = $numeroExcel;
             }
 
-            try {
-                if ($simular) {
-                    $vistaPrevia[] = ['fila' => $numeroExcel]
-                        + $this->servicio->normalizar($registro);
-                    continue;
-                }
-
-                $mantenimiento = $this->servicio->guardar($registro, 'excel');
-                $importados[] = $mantenimiento->numero_reporte;
-            } catch (ValidationException $e) {
-                $errores[] = [
-                    'fila'    => $numeroExcel,
-                    'equipo'  => (string) ($registro['equipo'] ?? '(sin nombre)'),
-                    'errores' => collect($e->errors())->flatten()->all(),
-                ];
-            } catch (\Throwable $e) {
-                $errores[] = [
-                    'fila'    => $numeroExcel,
-                    'equipo'  => (string) ($registro['equipo'] ?? '(sin nombre)'),
-                    'errores' => [$e->getMessage()],
-                ];
-            }
+        } finally {
+            $this->servicio->cerrarLote();
         }
 
         return response()->json([

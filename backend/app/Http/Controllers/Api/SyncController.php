@@ -56,44 +56,55 @@ class SyncController extends Controller
         $aceptados = [];
         $rechazados = [];
 
-        foreach ($request->input('registros') as $indice => $registro) {
-            $uuidLocal = $registro['uuid'] ?? $registro['idLocal'] ?? null;
+        $registros = $request->input('registros');
 
-            try {
-                $mantenimiento = $this->servicio->guardar($registro, $registro['origen'] ?? 'offline');
+        // Una sola tanda de busquedas para todo el lote. Sin esto, cada fila
+        // hace media docena de viajes a la base y un envio de ochenta se
+        // pasa de los treinta segundos que PHP le da a la peticion.
+        $this->servicio->abrirLote($registros);
 
-                $aceptados[] = [
-                    'uuid'           => $uuidLocal ?? $mantenimiento->uuid,
-                    'id'             => $mantenimiento->id,
-                    'numero_reporte' => $mantenimiento->numero_reporte,
-                ];
-            } catch (ValidationException $e) {
-                $rechazados[] = [
-                    'uuid'    => $uuidLocal,
-                    'fila'    => $indice + 1,
-                    'motivo'  => 'validacion',
-                    'errores' => $e->errors(),
-                ];
-            } catch (\Throwable $e) {
-                Log::error('Fallo sincronizando mantenimiento', [
-                    'uuid'  => $uuidLocal,
-                    'error' => $e->getMessage(),
-                ]);
+        try {
+            foreach ($registros as $indice => $registro) {
+                $uuidLocal = $registro['uuid'] ?? $registro['idLocal'] ?? null;
 
-                $rechazados[] = [
-                    'uuid'    => $uuidLocal,
-                    'fila'    => $indice + 1,
-                    'motivo'  => 'servidor',
-                    'errores' => ['general' => [$e->getMessage()]],
-                ];
+                try {
+                    $mantenimiento = $this->servicio->guardar($registro, $registro['origen'] ?? 'offline');
+
+                    $aceptados[] = [
+                        'uuid'           => $uuidLocal ?? $mantenimiento->uuid,
+                        'id'             => $mantenimiento->id,
+                        'numero_reporte' => $mantenimiento->numero_reporte,
+                    ];
+                } catch (ValidationException $e) {
+                    $rechazados[] = [
+                        'uuid'    => $uuidLocal,
+                        'fila'    => $indice + 1,
+                        'motivo'  => 'validacion',
+                        'errores' => $e->errors(),
+                    ];
+                } catch (\Throwable $e) {
+                    Log::error('Fallo sincronizando mantenimiento', [
+                        'uuid'  => $uuidLocal,
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    $rechazados[] = [
+                        'uuid'    => $uuidLocal,
+                        'fila'    => $indice + 1,
+                        'motivo'  => 'servidor',
+                        'errores' => ['general' => [$e->getMessage()]],
+                    ];
+                }
             }
+        } finally {
+            $this->servicio->cerrarLote();
         }
 
         return response()->json([
             'aceptados'  => $aceptados,
             'rechazados' => $rechazados,
             'resumen'    => [
-                'recibidos' => count($request->input('registros')),
+                'recibidos' => count($registros),
                 'guardados' => count($aceptados),
                 'fallidos'  => count($rechazados),
             ],

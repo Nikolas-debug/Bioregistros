@@ -22,6 +22,146 @@ class RegistroSyncService
 {
     public function __construct(private NumeroReporteService $reportes) {}
 
+    /* ------------------------------------------------------------------ */
+    /* Modo lote                                                           */
+    /*                                                                     */
+    /* Guardar fila por fila cuesta seis consultas cada una: buscar el     */
+    /* equipo, guardarlo, buscar el mantenimiento por uuid, pedir el       */
+    /* siguiente numero, comprobar que no este ocupado y guardar. Con la   */
+    /* base en otra maquina, cada una de esas consultas es un viaje de ida */
+    /* y vuelta por la red, y ochenta filas se van facil a los treinta     */
+    /* segundos que PHP le da a la peticion.                               */
+    /*                                                                     */
+    /* Abriendo el lote se hacen esas busquedas UNA vez para todas las     */
+    /* filas y quedan en memoria. Lo que sigue costando una consulta es    */
+    /* lo que de verdad escribe.                                           */
+    /* ------------------------------------------------------------------ */
+
+    /** Mantenimientos que ya existian, por uuid. null = lote cerrado. */
+    private ?array $enLote = null;
+
+    /** Equipos que ya existian, indexados por serie y por inventario. */
+    private ?array $equiposLote = null;
+
+    /** Numeros de reporte ya ocupados de los que el lote menciona. */
+    private array $numerosTomados = [];
+
+    /** El mayor numero de reporte, para repartir consecutivos de memoria. */
+    private ?int $ultimoNumero = null;
+
+    /**
+     * Precarga en cuatro consultas todo lo que el lote va a preguntar.
+     * Siempre en par con cerrarLote(), preferiblemente en un `finally`.
+     */
+    public function abrirLote(array $filas): void
+    {
+        $uuids = $series = $inventarios = $numeros = [];
+
+        foreach ($filas as $fila) {
+            if (! is_array($fila)) {
+                continue;
+            }
+
+            $d = $this->normalizar($fila);
+
+            $uuids[] = $d['uuid'];
+
+            if ($d['serie'] !== null) {
+                $series[] = $d['serie'];
+            }
+            if ($d['inventario'] !== null) {
+                $inventarios[] = $d['inventario'];
+            }
+            if ($d['numero_reporte']) {
+                $numeros[] = $d['numero_reporte'];
+            }
+        }
+
+        $this->enLote = Mantenimiento::whereIn('uuid', array_values(array_unique($uuids)))
+            ->get()
+            ->keyBy('uuid')
+            ->all();
+
+        $this->equiposLote = [];
+
+        if ($series || $inventarios) {
+            Dispositivo::where(function ($q) use ($series, $inventarios) {
+                if ($series) {
+                    $q->orWhereIn('serie', array_values(array_unique($series)));
+                }
+                if ($inventarios) {
+                    $q->orWhereIn('inventario', array_values(array_unique($inventarios)));
+                }
+            })->get()->each(fn ($equipo) => $this->recordarEquipo($equipo));
+        }
+
+        $this->numerosTomados = $numeros
+            ? Mantenimiento::whereIn('numero_reporte', array_values(array_unique($numeros)))
+                ->pluck('numero_reporte')
+                ->map(fn ($n) => (int) $n)
+                ->all()
+            : [];
+
+        $this->ultimoNumero = (int) Mantenimiento::max('numero_reporte');
+    }
+
+    /** Suelta la memoria del lote y vuelve al modo de una fila. */
+    public function cerrarLote(): void
+    {
+        $this->enLote = null;
+        $this->equiposLote = null;
+        $this->numerosTomados = [];
+        $this->ultimoNumero = null;
+    }
+
+    /**
+     * Anota un equipo para que las filas siguientes del mismo lote lo
+     * encuentren. Importa porque varios mantenimientos suelen ser del
+     * mismo aparato, y sin esto el primero lo crearia y el segundo lo
+     * volveria a crear.
+     */
+    private function recordarEquipo(Dispositivo $equipo): void
+    {
+        if ($this->equiposLote === null) {
+            return;
+        }
+
+        if ($equipo->serie) {
+            $this->equiposLote['s:' . $equipo->serie] = $equipo;
+        }
+        if ($equipo->inventario) {
+            $this->equiposLote['i:' . $equipo->inventario] = $equipo;
+        }
+    }
+
+    /** Igual que Dispositivo::buscarPor, pero sin ir a la base si hay lote. */
+    private function buscarDispositivo(?string $serie, ?string $inventario): ?Dispositivo
+    {
+        if ($this->equiposLote === null) {
+            return Dispositivo::buscarPor($serie, $inventario);
+        }
+
+        if ($serie && isset($this->equiposLote['s:' . $serie])) {
+            return $this->equiposLote['s:' . $serie];
+        }
+
+        if ($inventario && isset($this->equiposLote['i:' . $inventario])) {
+            return $this->equiposLote['i:' . $inventario];
+        }
+
+        return null;
+    }
+
+    /** El siguiente consecutivo, de memoria mientras el lote este abierto. */
+    private function siguienteNumero(): int
+    {
+        if ($this->ultimoNumero === null) {
+            return $this->reportes->siguiente();
+        }
+
+        return ++$this->ultimoNumero;
+    }
+
     /**
      * Guarda una fila. Devuelve el mantenimiento persistido.
      *
@@ -62,7 +202,7 @@ class RegistroSyncService
         return DB::transaction(function () use ($datos, $origen) {
 
             // --- 1. El equipo ---
-            $dispositivo = Dispositivo::buscarPor($datos['serie'], $datos['inventario']);
+            $dispositivo = $this->buscarDispositivo($datos['serie'], $datos['inventario']);
 
             $camposEquipo = array_filter([
                 'serie'      => $datos['serie'],
@@ -90,21 +230,27 @@ class RegistroSyncService
             }
 
             $dispositivo->save();
+            $this->recordarEquipo($dispositivo);
 
             // --- 2. El mantenimiento ---
-            $existente = Mantenimiento::where('uuid', $datos['uuid'])->first();
+            $existente = $this->enLote !== null
+                ? ($this->enLote[$datos['uuid']] ?? null)
+                : Mantenimiento::where('uuid', $datos['uuid'])->first();
 
             // El numero de reporte se asigna una sola vez. Si el registro ya
             // existe conserva el suyo; si viene uno explicito (importacion
             // de un seguimiento historico) se respeta tal cual.
             $numero = $existente?->numero_reporte
                 ?? $datos['numero_reporte']
-                ?? $this->reportes->siguiente();
+                ?? $this->siguienteNumero();
 
             // Si el numero explicito ya lo tiene otro registro, se avisa en
             // vez de pisarlo o de renumerar en silencio.
             if (! $existente && $datos['numero_reporte']) {
-                $ocupado = Mantenimiento::where('numero_reporte', $datos['numero_reporte'])->exists();
+                $ocupado = $this->enLote !== null
+                    ? in_array((int) $datos['numero_reporte'], $this->numerosTomados, true)
+                    : Mantenimiento::where('numero_reporte', $datos['numero_reporte'])->exists();
+
                 if ($ocupado) {
                     throw ValidationException::withMessages([
                         'numero_reporte' => [
@@ -137,6 +283,18 @@ class RegistroSyncService
             ]);
 
             $mantenimiento->save();
+
+            // Que las filas siguientes del lote vean lo que acaba de entrar:
+            // si el mismo uuid viene repetido en el envio, la segunda vez
+            // tiene que actualizar, no chocar.
+            if ($this->enLote !== null) {
+                $this->enLote[$datos['uuid']] = $mantenimiento;
+                $this->numerosTomados[] = (int) $numero;
+
+                if ((int) $numero > $this->ultimoNumero) {
+                    $this->ultimoNumero = (int) $numero;
+                }
+            }
 
             return $mantenimiento;
         });

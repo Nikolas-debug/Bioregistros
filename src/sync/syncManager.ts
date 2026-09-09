@@ -31,8 +31,15 @@ import { api, ApiError } from '../api/client';
 import { dbManager } from '../db/indexedDB';
 import { ElementoCola, MaintenanceRecord, ResultadoSync } from '../types';
 
-/** Cuántos registros van por petición. */
-const TAMANO_LOTE = 100;
+/**
+ * Cuántos registros van por petición.
+ *
+ * Bajo a propósito. El servidor tiene 30 segundos para responder antes de
+ * que PHP corte la petición, y si el corte llega, el dispositivo nunca se
+ * entera de qué se guardó: reenvía el lote entero y vuelve a chocar contra
+ * el mismo muro. Lotes cortos hacen más viajes, pero cada uno termina.
+ */
+const TAMANO_LOTE = 25;
 
 /** Cada cuánto se intenta vaciar la cola estando en línea (ms). */
 const INTERVALO_AUTO = 60_000;

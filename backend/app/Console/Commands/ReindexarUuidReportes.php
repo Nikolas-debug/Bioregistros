@@ -22,6 +22,17 @@ use Ramsey\Uuid\Uuid;
  *
  *   php artisan seguimiento:reindexar-uuid --simular
  *   php artisan seguimiento:reindexar-uuid
+ *
+ * Dos limites, a proposito:
+ *
+ *  - Solo toca registros con origen 'excel'. Los que se hicieron en la
+ *    aplicacion ya tienen un uuid que vive en el celular del tecnico;
+ *    cambiarlo le dejaria la fila duplicada.
+ *
+ *  - NO se debe correr despues de renumerar reportes. Si a un registro
+ *    se le cambio el numero, el uuid derivado de su numero nuevo ya no
+ *    es el que tiene guardado ningun dispositivo, y volveria a pasar lo
+ *    mismo: dos copias de la misma fila.
  */
 class ReindexarUuidReportes extends Command
 {
@@ -34,7 +45,12 @@ class ReindexarUuidReportes extends Command
     {
         $simular = (bool) $this->option('simular');
 
-        $registros = Mantenimiento::whereNotNull('numero_reporte')
+        // Solo los que vinieron de un Excel. Un registro hecho en la
+        // aplicacion trae un uuid que el dispositivo del tecnico ya tiene
+        // guardado; cambiarselo aqui le dejaria dos copias de la misma
+        // fila en el celular, la vieja y la nueva.
+        $registros = Mantenimiento::where('origen', 'excel')
+            ->whereNotNull('numero_reporte')
             ->orderBy('numero_reporte')
             ->get(['id', 'uuid', 'numero_reporte']);
 
