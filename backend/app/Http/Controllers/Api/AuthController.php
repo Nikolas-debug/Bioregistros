@@ -17,10 +17,8 @@ use Illuminate\Support\Facades\RateLimiter;
  * que hace Sanctum por dentro: token aleatorio de 256 bits, guardado como
  * SHA-256, enviado en la cabecera Authorization: Bearer.
  *
- * Cuando entren varios tecnicos y cada uno con varios dispositivos, el
- * camino es cambiar esto por Sanctum, que ya maneja varios tokens por
- * usuario y caducidad. Mientras tanto, un token por cuenta es suficiente y
- * es mas facil de auditar.
+ * Cada cuenta puede tener hasta User::MAX_SESIONES tokens (uno por
+ * dispositivo), guardados en la tabla api_tokens.
  */
 class AuthController extends Controller
 {
@@ -83,7 +81,7 @@ class AuthController extends Controller
     /** POST /api/auth/logout — invalida el token actual. */
     public function logout(Request $request): JsonResponse
     {
-        $request->user()?->revocarToken();
+        $request->user()?->revocarToken($request->bearerToken());
 
         return response()->json(['mensaje' => 'Sesión cerrada.']);
     }
@@ -136,6 +134,7 @@ class AuthController extends Controller
 
         $usuario->password = $datos['nueva'];
         $usuario->save();
+        $usuario->revocarToken();
 
         // Cambiar la contraseña cierra la sesion en todos lados: es lo que
         // uno espera cuando la cambia justamente porque sospecha algo.

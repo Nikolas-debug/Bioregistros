@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class User extends Authenticatable
@@ -41,31 +42,42 @@ class User extends Authenticatable
         ];
     }
 
+    /** Dispositivos con sesion abierta a la vez; el ingreso mas viejo sale. */
+    public const MAX_SESIONES = 5;
+
     /**
      * Genera un token nuevo, guarda solo su huella y devuelve el token en
      * claro. Es la unica vez que existe legible: si se pierde, se genera
-     * otro. Iniciar sesion invalida el token anterior, asi que la cuenta
-     * queda activa en un solo dispositivo a la vez.
+     * otro. Si ya hay MAX_SESIONES abiertas, se cierra la mas antigua.
      */
     public function generarToken(): string
     {
         $token = Str::random(64);
 
-        $this->forceFill([
-            'api_token_hash'  => hash('sha256', $token),
-            'token_creado_en' => now(),
-            'ultimo_acceso'   => now(),
-        ])->save();
+        DB::table('api_tokens')->insert([
+            'user_id'    => $this->id,
+            'token_hash' => hash('sha256', $token),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $vigentes = DB::table('api_tokens')->where('user_id', $this->id)
+            ->orderByDesc('id')->limit(self::MAX_SESIONES)->pluck('id');
+
+        DB::table('api_tokens')->where('user_id', $this->id)
+            ->whereNotIn('id', $vigentes)->delete();
+
+        $this->forceFill(['ultimo_acceso' => now()])->save();
 
         return $token;
     }
 
-    public function revocarToken(): void
+    /** Cierra la sesion de ese token, o todas si no se indica ninguno. */
+    public function revocarToken(?string $token = null): void
     {
-        $this->forceFill([
-            'api_token_hash'  => null,
-            'token_creado_en' => null,
-        ])->save();
+        DB::table('api_tokens')->where('user_id', $this->id)
+            ->when($token, fn ($q) => $q->where('token_hash', hash('sha256', $token)))
+            ->delete();
     }
 
     /** Busca al dueño de un token. Devuelve null si no existe o esta inactivo. */
@@ -75,7 +87,8 @@ class User extends Authenticatable
             return null;
         }
 
-        return static::where('api_token_hash', hash('sha256', $token))
+        return static::whereIn('id', DB::table('api_tokens')
+                ->where('token_hash', hash('sha256', $token))->select('user_id'))
             ->where('activo', true)
             ->first();
     }

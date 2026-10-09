@@ -24,3 +24,4 @@ backend/storage/logs/*
 backend/public/storage
 composer.phar
 _archivos-backend/
+*.bat
