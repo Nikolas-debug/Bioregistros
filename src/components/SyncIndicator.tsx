@@ -25,6 +25,16 @@ export const SyncIndicator: React.FC<{ compacto?: boolean }> = ({ compacto }) =>
     }
   };
 
+  const descartar = async () => {
+    const seguir = window.confirm(
+      `El servidor rechazó ${s.rechazados} registro(s) y reenviarlos no lo va a cambiar ` +
+      '(por ejemplo, porque ese número de reporte ya existe).\n\n' +
+      'Se borrarán de este dispositivo. Lo que ya está en el servidor no se toca.\n\n' +
+      '¿Descartarlos?'
+    );
+    if (seguir) await syncManager.descartarRechazados();
+  };
+
   const enMovimiento = sincronizando || s.estado === 'sincronizando';
 
   /* --- Apariencia según el estado --- */
@@ -48,7 +58,7 @@ export const SyncIndicator: React.FC<{ compacto?: boolean }> = ({ compacto }) =>
         girar: false,
       };
     }
-    if (s.estado === 'error') {
+    if (s.estado === 'error' || s.rechazados > 0) {
       return {
         Icono: AlertCircle,
         clase: 'bg-amber-50 text-amber-800 border-amber-200',
@@ -117,6 +127,15 @@ export const SyncIndicator: React.FC<{ compacto?: boolean }> = ({ compacto }) =>
           Sincronizar
         </button>
       </div>
+
+      {s.rechazados > 0 && !enMovimiento && (
+        <button
+          onClick={descartar}
+          className="mt-2 w-full rounded-lg bg-white/70 px-3 py-1.5 text-xs font-semibold hover:bg-white"
+        >
+          Descartar {s.rechazados} rechazado(s)
+        </button>
+      )}
 
       {s.ultimoResultado?.errores && s.ultimoResultado.errores.length > 0 && (
         <ul className="mt-2 space-y-1 border-t border-current/10 pt-2 text-[11px] opacity-90">

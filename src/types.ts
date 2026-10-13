@@ -219,6 +219,12 @@ export interface ElementoCola {
   intentos: number;
   ultimoError: string | null;
   ultimoIntento?: number;
+  /**
+   * El servidor lo rechazó por su contenido (p. ej. "el reporte N ya
+   * existe"), no por falta de red. Reenviarlo igual nunca va a funcionar,
+   * así que no se reintenta y se le ofrece al usuario descartarlo.
+   */
+  rechazado?: boolean;
 }
 
 /** Resultado de una corrida de sincronización, para mostrar en pantalla. */

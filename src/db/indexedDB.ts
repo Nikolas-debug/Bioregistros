@@ -453,7 +453,10 @@ class IndexedDBManager {
     });
   }
 
-  async marcarFallidos(fallos: { id: string; error: string }[]): Promise<void> {
+  async marcarFallidos(
+    fallos: { id: string; error: string }[],
+    rechazado = false,
+  ): Promise<void> {
     if (fallos.length === 0) return;
     const db = await this.openDB();
 
@@ -472,6 +475,7 @@ class IndexedDBManager {
               intentos: (item.intentos || 0) + 1,
               ultimoError: error,
               ultimoIntento: Date.now(),
+              rechazado,
             });
           }
         };
@@ -483,6 +487,29 @@ class IndexedDBManager {
             registros.put({ ...registro, syncState: 'error', syncError: error });
           }
         };
+      });
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /**
+   * Saca de la cola y del historial local registros que el servidor
+   * rechazó. Se borra también la fila local: el caso real fueron 41 filas
+   * de un Excel cuyos reportes ya estaban en PostgreSQL con otro uuid, y
+   * dejarlas habría mostrado cada reporte dos veces. La versión del
+   * servidor sigue llegando por la bajada.
+   */
+  async descartar(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const db = await this.openDB();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([STORES.QUEUE, STORES.RECORDS], 'readwrite');
+      ids.forEach((id) => {
+        tx.objectStore(STORES.QUEUE).delete(id);
+        tx.objectStore(STORES.RECORDS).delete(id);
       });
 
       tx.oncomplete = () => resolve();

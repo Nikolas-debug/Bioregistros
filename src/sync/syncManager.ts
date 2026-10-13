@@ -64,6 +64,8 @@ export type EstadoSync = 'inactivo' | 'sincronizando' | 'sin-conexion' | 'error'
 export interface InstantaneaSync {
   estado: EstadoSync;
   pendientes: number;
+  /** Cuántos de los pendientes rechazó el servidor y esperan ser descartados. */
+  rechazados: number;
   ultimoResultado: ResultadoSync | null;
   ultimaSincronizacion: number | null;
   hayServidor: boolean;
@@ -80,6 +82,7 @@ type Oyente = (s: InstantaneaSync) => void;
 class SyncManager {
   private estado: EstadoSync = 'inactivo';
   private pendientes = 0;
+  private rechazados = 0;
   private ultimoResultado: ResultadoSync | null = null;
   private ultimaSincronizacion: number | null = null;
   private hayServidor = false;
@@ -155,6 +158,7 @@ class SyncManager {
     return {
       estado: this.estado,
       pendientes: this.pendientes,
+      rechazados: this.rechazados,
       ultimoResultado: this.ultimoResultado,
       ultimaSincronizacion: this.ultimaSincronizacion,
       hayServidor: this.hayServidor,
@@ -173,7 +177,9 @@ class SyncManager {
   }
 
   async refrescarPendientes(): Promise<number> {
-    this.pendientes = await dbManager.contarPendientes();
+    const cola = await dbManager.obtenerCola(Infinity);
+    this.pendientes = cola.length;
+    this.rechazados = cola.filter((i) => i.rechazado).length;
     this.avisar();
     return this.pendientes;
   }
@@ -332,7 +338,7 @@ class SyncManager {
             error: Object.values(r.errores || {}).flat().join(' · ') || r.motivo,
           }));
 
-          await dbManager.marcarFallidos(fallos);
+          await dbManager.marcarFallidos(fallos, true);
           fallidos += fallos.length;
           erroresVisibles.push(
             ...fallos.map((f) => ({ id: f.id, detalle: f.error })),
@@ -470,6 +476,9 @@ class SyncManager {
   private tocaReintentar(item: ElementoCola, ahora: number): boolean {
     const intentos = item.intentos || 0;
 
+    // Rechazado por su contenido: reenviarlo daría el mismo error cada
+    // minuto. Solo sale de aquí si el usuario lo edita o lo descarta.
+    if (item.rechazado) return false;
     if (intentos === 0) return true;
     if (intentos >= MAX_INTENTOS) return false; // requiere revisión manual
 
@@ -523,10 +532,16 @@ class SyncManager {
     };
   }
 
-  /** Registros atascados que ya no se reintentan solos. */
-  async pendientesConProblema(): Promise<ElementoCola[]> {
-    const cola = await dbManager.obtenerCola(1000);
-    return cola.filter((i) => (i.intentos || 0) >= 3);
+  /** Borra del dispositivo lo que el servidor rechazó. Devuelve cuántos. */
+  async descartarRechazados(): Promise<number> {
+    const cola = await dbManager.obtenerCola(Infinity);
+    const ids = cola.filter((i) => i.rechazado).map((i) => i.id);
+
+    await dbManager.descartar(ids);
+    this.selloDatos = Date.now();
+    await this.refrescarPendientes();
+
+    return ids.length;
   }
 }
 

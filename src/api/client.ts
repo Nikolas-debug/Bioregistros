@@ -271,12 +271,21 @@ export const api = {
     }
   },
 
-  /** Envía un lote de registros pendientes de IndexedDB. */
+  /**
+   * Envía un lote de registros pendientes de IndexedDB.
+   *
+   * El tiempo de espera va por encima de los 30 s con que PHP corta la
+   * petición. Con los 20 s generales, la laptop abandonaba lotes de 25 filas
+   * de Excel que el servidor sí estaba guardando: nunca leía la respuesta,
+   * no los sacaba de la cola y los reenviaba sin fin (250 en cola con
+   * "El servidor no respondió a tiempo").
+   */
   enviarLote(registros: any[]): Promise<RespuestaSync> {
-    return request<RespuestaSync>('/sync/mantenimientos', {
-      method: 'POST',
-      body: JSON.stringify({ registros }),
-    });
+    return request<RespuestaSync>(
+      '/sync/mantenimientos',
+      { method: 'POST', body: JSON.stringify({ registros }) },
+      45000,
+    );
   },
 
   /** Estadísticas del servidor, para comparar con lo que hay en el celular. */
