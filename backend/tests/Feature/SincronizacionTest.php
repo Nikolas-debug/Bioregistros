@@ -134,4 +134,47 @@ class SincronizacionTest extends TestCase
         $this->assertSame(1, Mantenimiento::count());
         $this->assertSame(2, Mantenimiento::withTrashed()->count());
     }
+
+    /** Reenviar un registro sin serie ni inventario no deja equipos huerfanos. */
+    public function test_reenviar_sin_identificador_no_crea_equipos_huerfanos(): void
+    {
+        $fila = $this->fila(['serie' => null]);
+
+        foreach (range(1, 4) as $vez) {
+            $this->subir([$fila])->assertOk();
+        }
+
+        $this->assertSame(1, \App\Models\Dispositivo::count());
+    }
+
+    /** "N/T" significa "no tiene": no puede volver un solo equipo a todos los que no tienen. */
+    public function test_inventario_n_t_no_fusiona_equipos_distintos(): void
+    {
+        $this->subir([
+            $this->fila(['serie' => null, 'inventario' => 'N/T', 'equipo' => 'LARINGOSCOPIO']),
+            $this->fila(['serie' => 'NN', 'inventario' => 'N/T', 'equipo' => 'MESA DE PARTOS']),
+            $this->fila(['serie' => null, 'inventario' => '15320000', 'equipo' => 'CAMA HOSPITALIZACION']),
+        ])->assertOk();
+
+        $this->assertSame(3, \App\Models\Dispositivo::count());
+        $this->assertEqualsCanonicalizing(
+            ['LARINGOSCOPIO', 'MESA DE PARTOS', 'CAMA HOSPITALIZACION'],
+            Mantenimiento::with('dispositivo')->get()->pluck('dispositivo.equipo')->all(),
+        );
+    }
+
+    /** Corregir un registro de un equipo ya fusionado lo separa sin renombrar a los demas. */
+    public function test_editar_un_registro_fusionado_lo_separa(): void
+    {
+        $a = $this->fila(['serie' => 'TEMP-1', 'equipo' => 'LARINGOSCOPIO']);
+        $b = $this->fila(['serie' => 'TEMP-1', 'equipo' => 'LARINGOSCOPIO']);
+        $this->subir([$a, $b])->assertOk();
+        DB::table('dispositivos')->update(['serie' => 'M/T', 'inventario' => 'N/T']);   // como quedo en produccion
+
+        $this->subir([array_merge($a, ['serie' => 'M/T', 'inventario' => 'N/T', 'equipo' => 'MESA DE PARTOS'])])->assertOk();
+
+        $porUuid = Mantenimiento::with('dispositivo')->get()->keyBy('uuid');
+        $this->assertSame('MESA DE PARTOS', $porUuid[$a['uuid']]->dispositivo->equipo);
+        $this->assertSame('LARINGOSCOPIO', $porUuid[$b['uuid']]->dispositivo->equipo);
+    }
 }

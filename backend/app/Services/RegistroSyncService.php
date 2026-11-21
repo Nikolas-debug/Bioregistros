@@ -152,6 +152,28 @@ class RegistroSyncService
         return null;
     }
 
+    /**
+     * El equipo que ya tenia este registro, si nadie mas lo usa.
+     *
+     * Sin serie ni inventario no hay como buscar el equipo, y antes se creaba
+     * uno nuevo en cada reenvio: el registro se mudaba al nuevo y el viejo
+     * quedaba huerfano (420 en produccion, uno por reintento). Si el equipo
+     * lo comparte con otros registros (una fusion vieja por "N/T"), se deja
+     * en paz y este registro estrena el suyo.
+     */
+    private function equipoPropio(?Mantenimiento $existente): ?Dispositivo
+    {
+        if (! $existente?->dispositivo_id) {
+            return null;
+        }
+
+        $compartido = Mantenimiento::where('dispositivo_id', $existente->dispositivo_id)
+            ->where('id', '!=', $existente->id)
+            ->exists();
+
+        return $compartido ? null : Dispositivo::find($existente->dispositivo_id);
+    }
+
     /** El siguiente consecutivo, de memoria mientras el lote este abierto. */
     private function siguienteNumero(): int
     {
@@ -242,7 +264,8 @@ class RegistroSyncService
         [$dispositivo, $mantenimiento] = DB::transaction(function () use ($datos, $origen, $existente, $numero) {
 
             // --- 1. El equipo ---
-            $dispositivo = $this->buscarDispositivo($datos['serie'], $datos['inventario']);
+            $dispositivo = $this->buscarDispositivo($datos['serie'], $datos['inventario'])
+                ?? $this->equipoPropio($existente);
 
             $camposEquipo = array_filter([
                 'serie'      => $datos['serie'],
@@ -365,8 +388,8 @@ class RegistroSyncService
         return [
             'uuid'                  => $this->uuid($e, $numero),
             'numero_reporte'        => is_numeric($numero) ? (int) $numero : null,
-            'serie'                 => $this->limpiar($tomar(['serie', 'serialNumber', 'SERIE'])),
-            'inventario'            => $this->limpiar($tomar(['inventario', 'inventoryCode', 'INVENTARIO'])),
+            'serie'                 => $this->identificador($tomar(['serie', 'serialNumber', 'SERIE'])),
+            'inventario'            => $this->identificador($tomar(['inventario', 'inventoryCode', 'INVENTARIO'])),
             'equipo'                => $this->limpiar($tomar(['equipo', 'equipment', 'EQUIPO'])) ?? '',
             'marca'                 => $this->limpiar($tomar(['marca', 'brand', 'MARCA'])),
             'modelo'                => $this->limpiar($tomar(['modelo', 'model', 'MODELO'])),
@@ -422,6 +445,35 @@ class RegistroSyncService
 
         return (string) Str::uuid();
     }
+
+    /**
+     * Serie o inventario, o null si lo escrito significa "no tiene".
+     *
+     * En el seguimiento real se escribe N/T, NT, NN, N N, M/T, X... cuando el
+     * equipo no trae placa, y el inventario a veces queda solo con el
+     * prefijo de la clinica (15320000). Tomados como identificador real,
+     * todos los equipos "N/T" eran el mismo: se fusionaban en un solo
+     * dispositivo y cada registro nuevo le cambiaba el nombre a los demas.
+     */
+    private function identificador($valor): ?string
+    {
+        $valor = $this->limpiar($valor);
+        if ($valor === null) {
+            return null;
+        }
+
+        $letras = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $valor));
+
+        $sinDato = in_array($letras, [
+            '', 'N', 'NN', 'NNN', 'NT', 'MT', 'NA', 'SN', 'SS', 'X', 'XX', 'NO', 'NOTIENE',
+            'SINSERIE', 'SININVENTARIO', 'ILEGIBLE', 'NOAPLICA', '0', '00', '000',
+        ], true);
+
+        return $sinDato || $letras === self::PREFIJO_INVENTARIO ? null : $valor;
+    }
+
+    /** Lo que traen todos los codigos de inventario de la clinica antes del consecutivo. */
+    private const PREFIJO_INVENTARIO = '15320000';
 
     private function limpiar($valor): ?string
     {
