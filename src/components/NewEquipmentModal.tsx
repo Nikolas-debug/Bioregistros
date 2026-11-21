@@ -1,14 +1,6 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  Save, 
-  Plus, 
-  Microscope, 
-  MapPin, 
-  ShieldCheck, 
-  Building2,
-  CheckCircle2
-} from 'lucide-react';
+import { Save, Plus } from 'lucide-react';
+import { Campo, Sheet } from './ui';
 import { Equipment, ESTADOS_SUGERIDOS, SERVICIOS_SUGERIDOS } from '../types';
 
 interface NewEquipmentModalProps {
@@ -70,164 +62,99 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="bg-gradient-to-r from-teal-700 to-blue-800 p-5 text-white flex items-center justify-between sticky top-0 z-10">
-          <div className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-teal-300" />
-            <div>
-              <h3 className="font-bold text-base">Registrar Nuevo Equipo</h3>
-              <p className="text-xs text-teal-100">Añadir al inventario biomédico hospitalario</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full text-teal-100 hover:text-white hover:bg-white/10"
-          >
-            <X className="w-5 h-5" />
+    <Sheet
+      titulo="Registrar nuevo equipo"
+      subtitulo="Añadir al inventario biomédico hospitalario"
+      icono={<Plus className="size-5" />}
+      onClose={onClose}
+      pie={
+        <>
+          <button type="button" onClick={onClose} className="btn btn-ghost flex-1 sm:flex-none">
+            Cancelar
           </button>
-        </div>
-
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
-          
-          <div>
-            <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
-              Nombre del Equipo Médico *
-            </label>
+          <button type="submit" form="form-nuevo-equipo" disabled={isSubmitting} className="btn btn-primary flex-1">
+            <Save className="size-4" />
+            {isSubmitting ? 'Guardando…' : 'Guardar equipo'}
+          </button>
+        </>
+      }
+    >
+      <form id="form-nuevo-equipo" onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+        <Campo etiqueta="Nombre del equipo médico *" className="sm:col-span-2">
+          {(id) => (
             <input
+              id={id}
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="ej. Desfibrilador Bifásico, Ventilador Pulmonar"
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
+              placeholder="Ej. Desfibrilador bifásico, ventilador pulmonar"
+              className="input"
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Marca</label>
-              <input
-                type="text"
-                required
-                value={brand}
-                onChange={(e) => setBrand(e.target.value)}
-                placeholder="ej. Philips, GE"
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Modelo</label>
-              <input
-                type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="ej. V60, BeneVision"
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">N° de Serie *</label>
-              <input
-                type="text"
-                required
-                value={serialNumber}
-                onChange={(e) => setSerialNumber(e.target.value)}
-                placeholder="SN-XXXXX"
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold focus:bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Código Inventario</label>
-              <input
-                type="text"
-                value={inventoryCode}
-                onChange={(e) => setInventoryCode(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:bg-white"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Servicio</label>
-              <select
-                value={service}
-                onChange={(e) => setService(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white"
-              >
-                {SERVICES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Ubicación</label>
-              <input
-                type="text"
-                value={specificLocation}
-                onChange={(e) => setSpecificLocation(e.target.value)}
-                placeholder="ej. Cama 4"
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Clasificación Riesgo</label>
-              <select
-                value={riskClass}
-                onChange={(e) => setRiskClass(e.target.value as any)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white"
-              >
-                <option value="I">Clase I (Bajo Riesgo)</option>
-                <option value="IIA">Clase IIA (Riesgo Moderado)</option>
-                <option value="IIB">Clase IIB (Alto Riesgo)</option>
-                <option value="III">Clase III (Muy Alto / Soporte de Vida)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Estado</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white"
-              >
-                {ESTADOS_SUGERIDOS.map((e) => (
-                  <option key={e} value={e}>{e}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="pt-3 flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-1/2 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-1/2 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'Guardando...' : 'Guardar Equipo'}</span>
-            </button>
-          </div>
-
-        </form>
-
-      </div>
-    </div>
+          )}
+        </Campo>
+        <Campo etiqueta="Marca">
+          {(id) => (
+            <input id={id} type="text" required value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Ej. Philips, GE" className="input" />
+          )}
+        </Campo>
+        <Campo etiqueta="Modelo">
+          {(id) => (
+            <input id={id} type="text" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Ej. V60, BeneVision" className="input" />
+          )}
+        </Campo>
+        <Campo etiqueta="N° de serie *">
+          {(id) => (
+            <input
+              id={id}
+              type="text"
+              required
+              value={serialNumber}
+              onChange={(e) => setSerialNumber(e.target.value)}
+              placeholder="SN-XXXXX"
+              className="input font-mono tracking-normal"
+            />
+          )}
+        </Campo>
+        <Campo etiqueta="Código inventario">
+          {(id) => (
+            <input id={id} type="text" value={inventoryCode} onChange={(e) => setInventoryCode(e.target.value)} className="input font-mono tracking-normal" />
+          )}
+        </Campo>
+        <Campo etiqueta="Servicio">
+          {(id) => (
+            <select id={id} value={service} onChange={(e) => setService(e.target.value)} className="input">
+              {SERVICES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          )}
+        </Campo>
+        <Campo etiqueta="Ubicación">
+          {(id) => (
+            <input id={id} type="text" value={specificLocation} onChange={(e) => setSpecificLocation(e.target.value)} placeholder="Ej. Cama 4" className="input" />
+          )}
+        </Campo>
+        <Campo etiqueta="Clasificación de riesgo">
+          {(id) => (
+            <select id={id} value={riskClass} onChange={(e) => setRiskClass(e.target.value)} className="input">
+              <option value="I">Clase I (bajo riesgo)</option>
+              <option value="IIA">Clase IIA (riesgo moderado)</option>
+              <option value="IIB">Clase IIB (alto riesgo)</option>
+              <option value="III">Clase III (muy alto / soporte de vida)</option>
+            </select>
+          )}
+        </Campo>
+        <Campo etiqueta="Estado">
+          {(id) => (
+            <select id={id} value={status} onChange={(e) => setStatus(e.target.value)} className="input">
+              {ESTADOS_SUGERIDOS.map((e) => (
+                <option key={e} value={e}>{e}</option>
+              ))}
+            </select>
+          )}
+        </Campo>
+      </form>
+    </Sheet>
   );
 };

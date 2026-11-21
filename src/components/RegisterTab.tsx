@@ -1,18 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  Microscope, 
-  MapPin, 
-  Settings2, 
-  CheckCircle2, 
-  Calendar as CalendarIcon, 
-  Save, 
-  X, 
-  Wrench, 
-  ShieldCheck, 
-  MoreHorizontal,
-  Sparkles,
-  FileSpreadsheet
-} from 'lucide-react';
+import { CheckCircle2, Save, Check, FileSpreadsheet } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
   MaintenanceRecord,
@@ -20,6 +7,7 @@ import {
   ESTADOS_SUGERIDOS,
   SERVICIOS_SUGERIDOS,
 } from '../types';
+import { Campo } from './ui';
 
 interface RegisterTabProps {
   onSaveRecord: (record: Omit<MaintenanceRecord, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
@@ -163,349 +151,294 @@ export const RegisterTab: React.FC<RegisterTabProps> = ({
   };
 
   return (
-    <div className="pb-28 lg:pb-10 pt-4 px-4 max-w-md lg:max-w-2xl mx-auto space-y-6 animate-in fade-in duration-200">
-      
-      {/* Title & Description matching Image 1 */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-          Nuevo Registro de Mantenimiento
-        </h2>
-        <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-          Complete los datos técnicos de la intervención en el equipo biomédico.
-        </p>
+    <div className="px-4 pt-4 pb-[calc(96px+env(safe-area-inset-bottom))] lg:px-8 lg:pt-6 lg:pb-12">
+
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="t-display">Nuevo registro de mantenimiento</h1>
+          <p className="t-lead mt-2">
+            Complete los datos técnicos de la intervención en el equipo biomédico.
+          </p>
+        </div>
+
+        {/* Registro masivo: atajo para cargar muchas filas desde un Excel */}
+        {onOpenBulkImport && (
+          <button type="button" onClick={onOpenBulkImport} className="btn btn-ghost self-start lg:self-auto">
+            <FileSpreadsheet className="size-4" />
+            Registro masivo desde Excel
+          </button>
+        )}
       </div>
 
-      {/* Registro masivo: atajo para cargar muchas filas desde un Excel */}
-      {onOpenBulkImport && (
-        <button
-          type="button"
-          onClick={onOpenBulkImport}
-          className="w-full flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-blue-300 hover:bg-blue-50/40"
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
-            <FileSpreadsheet className="h-4.5 w-4.5 text-emerald-700" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-slate-900">
-              Registro masivo desde Excel
-            </span>
-            <span className="block text-[11px] text-slate-500">
-              Cargue varias intervenciones de una sola vez
-            </span>
-          </span>
-        </button>
-      )}
-
-      {/* Quick Suggestions from inventory */}
+      {/* Atajo: equipos ya conocidos */}
       {equipments.length > 0 && !equipment && (
-        <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-blue-600" /> Autocompletar desde Inventario
-            </span>
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-            {equipments.slice(0, 4).map((eq) => (
+        <div className="mt-5">
+          <p className="field-label">Autocompletar desde inventario</p>
+          <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:px-0">
+            {equipments.slice(0, 6).map((eq) => (
               <button
                 key={eq.id}
                 type="button"
                 onClick={() => handleSelectPreloadedEquipment(eq)}
-                className="text-xs bg-white hover:bg-blue-100/70 border border-blue-200 text-blue-800 px-2.5 py-1 rounded-lg shrink-0 transition-colors font-medium"
+                className="pill-tab"
               >
-                {eq.name} ({eq.brand})
+                {eq.name}
+                <span className="font-medium text-slate-500">{eq.brand}</span>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Success Toast */}
+      {/* Confirmación */}
       {showSuccessToast && (
-        <div className="p-4 bg-emerald-600 text-white rounded-2xl shadow-lg flex items-center gap-3 animate-in zoom-in-95 duration-200">
-          <CheckCircle2 className="w-6 h-6 shrink-0" />
+        <div className="notice notice-ok mt-5" role="status">
+          <CheckCircle2 className="size-6 shrink-0 text-emerald-700" />
           <div>
-            <h4 className="font-bold text-sm">¡Registro Guardado en IndexedDB!</h4>
-            <p className="text-xs text-emerald-100">Guardado localmente de forma segura y listo para reporte anual.</p>
+            <p className="font-bold">¡Registro guardado!</p>
+            <p>Guardado localmente de forma segura y listo para el reporte anual.</p>
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        
-        {/* CARD 1: INFORMACIÓN DEL DISPOSITIVO */}
-        <div className="bg-slate-50/60 rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-          <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex items-center gap-2 text-xs font-bold text-slate-800 tracking-wider uppercase">
-            <Microscope className="w-4 h-4 text-blue-600" />
-            <span>INFORMACIÓN DEL DISPOSITIVO</span>
-          </div>
+      <form onSubmit={handleSubmit} className="mt-6 grid gap-4 lg:grid-cols-2 lg:gap-6">
 
-          <div className="p-4 space-y-3 bg-white">
-            {/* Equipo */}
-            <div>
-              <input
-                id="input-device-equipment"
-                type="text"
-                required
-                value={equipment}
-                onChange={(e) => setEquipment(e.target.value)}
-                placeholder="Equipo (ej. Ventilador V60, Desfibrilador)"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              />
-            </div>
-
-            {/* Marca */}
-            <div>
-              <input
-                id="input-device-brand"
-                type="text"
-                required
-                value={brand}
-                onChange={(e) => setBrand(e.target.value)}
-                placeholder="Marca (ej. Philips, GE Healthcare)"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              />
-            </div>
-
-            {/* Modelo */}
-            <div>
-              <input
-                id="input-device-model"
-                type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="Modelo (ej. V60, Optima 450w)"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              />
-            </div>
-
-            {/* Número de Serie with verified badge border matching image */}
-            <div className="relative">
-              <div className="border border-emerald-600 rounded-xl p-2.5 bg-emerald-50/20 flex items-center justify-between">
-                <div className="w-full">
-                  <label className="block text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
-                    Número de Serie
-                  </label>
-                  <input
-                    id="input-device-serial"
-                    type="text"
-                    required
-                    value={serialNumber}
-                    onChange={(e) => setSerialNumber(e.target.value)}
-                    placeholder="SN-89234"
-                    className="w-full bg-transparent border-0 p-0 text-slate-900 font-mono text-sm font-semibold focus:outline-hidden focus:ring-0"
-                  />
-                </div>
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 ml-2" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* CARD 2: UBICACIÓN */}
-        <div className="bg-slate-50/60 rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-          <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex items-center gap-2 text-xs font-bold text-slate-800 tracking-wider uppercase">
-            <MapPin className="w-4 h-4 text-blue-600" />
-            <span>UBICACIÓN</span>
-          </div>
-
-          <div className="p-4 space-y-3 bg-white">
-            {/* SERVICIO Dropdown */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1">
-                SERVICIO
-              </label>
-              <input
-                id="input-location-service"
-                type="text"
-                list="lista-servicios"
-                value={service}
-                onChange={(e) => setService(e.target.value)}
-                placeholder="Ej. HOSPITALIZACION, UCI NEONATAL, TORRE B"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 text-sm font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              />
-              <datalist id="lista-servicios">
-                {SERVICES.map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
-            </div>
-
-            {/* Ubicación Específica */}
-            <div>
-              <input
-                id="input-location-specific"
-                type="text"
-                value={specificLocation}
-                onChange={(e) => setSpecificLocation(e.target.value)}
-                placeholder="Ubicación Específica (ej. Cama 4, Box 2)"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              />
-            </div>
-
-            {/* Código de Inventario Institucional */}
-            <div>
-              <input
-                id="input-location-inventory-code"
-                type="text"
-                value={inventoryCode}
-                onChange={(e) => setInventoryCode(e.target.value)}
-                placeholder="Código de Inventario Institucional (ej. CDN-BIO-2023-089)"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent font-mono"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* CARD 3: DETALLES DEL MANTENIMIENTO */}
-        <div className="bg-slate-50/60 rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-          <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex items-center gap-2 text-xs font-bold text-slate-800 tracking-wider uppercase">
-            <Settings2 className="w-4 h-4 text-blue-600" />
-            <span>DETALLES DEL MANTENIMIENTO</span>
-          </div>
-
-          <div className="p-4 space-y-4 bg-white">
-            
-            {/* FECHA DE INTERVENCIÓN */}
-            <div className="border border-slate-300 rounded-xl p-2.5 bg-white">
-              <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide">
-                FECHA DE INTERVENCIÓN
-              </label>
-              <div className="flex items-center justify-between mt-0.5">
+        {/* Equipo */}
+        <section className="card p-5 lg:p-6">
+          <h2 className="text-lg font-medium tracking-[-0.01em]">Información del dispositivo</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <Campo etiqueta="Equipo" className="sm:col-span-2">
+              {(id) => (
                 <input
-                  id="input-date-intervention"
+                  id={id}
+                  type="text"
+                  required
+                  value={equipment}
+                  onChange={(e) => setEquipment(e.target.value)}
+                  placeholder="Ej. Ventilador V60, Desfibrilador"
+                  className="input"
+                />
+              )}
+            </Campo>
+            <Campo etiqueta="Marca">
+              {(id) => (
+                <input
+                  id={id}
+                  type="text"
+                  required
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  placeholder="Ej. Philips, GE Healthcare"
+                  className="input"
+                />
+              )}
+            </Campo>
+            <Campo etiqueta="Modelo">
+              {(id) => (
+                <input
+                  id={id}
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="Ej. V60, Optima 450w"
+                  className="input"
+                />
+              )}
+            </Campo>
+            <Campo etiqueta="Número de serie" className="sm:col-span-2">
+              {(id) => (
+                <input
+                  id={id}
+                  type="text"
+                  required
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  value={serialNumber}
+                  onChange={(e) => setSerialNumber(e.target.value)}
+                  placeholder="SN-89234"
+                  className="input font-mono tracking-normal"
+                />
+              )}
+            </Campo>
+          </div>
+        </section>
+
+        {/* Ubicación */}
+        <section className="card p-5 lg:p-6">
+          <h2 className="text-lg font-medium tracking-[-0.01em]">Ubicación</h2>
+          <div className="mt-4 grid gap-4">
+            <Campo etiqueta="Servicio">
+              {(id) => (
+                <>
+                  <input
+                    id={id}
+                    type="text"
+                    list="lista-servicios"
+                    value={service}
+                    onChange={(e) => setService(e.target.value)}
+                    placeholder="Ej. HOSPITALIZACIÓN, UCI NEONATAL, TORRE B"
+                    className="input"
+                  />
+                  <datalist id="lista-servicios">
+                    {SERVICES.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
+                </>
+              )}
+            </Campo>
+            <Campo etiqueta="Ubicación específica">
+              {(id) => (
+                <input
+                  id={id}
+                  type="text"
+                  value={specificLocation}
+                  onChange={(e) => setSpecificLocation(e.target.value)}
+                  placeholder="Ej. Cama 4, Box 2"
+                  className="input"
+                />
+              )}
+            </Campo>
+            <Campo etiqueta="Código de inventario institucional">
+              {(id) => (
+                <input
+                  id={id}
+                  type="text"
+                  spellCheck={false}
+                  value={inventoryCode}
+                  onChange={(e) => setInventoryCode(e.target.value)}
+                  placeholder="Ej. CDN-BIO-2023-089"
+                  className="input font-mono tracking-normal"
+                />
+              )}
+            </Campo>
+          </div>
+        </section>
+
+        {/* Mantenimiento */}
+        <section className="card p-5 lg:col-span-2 lg:p-6">
+          <h2 className="text-lg font-medium tracking-[-0.01em]">Detalles del mantenimiento</h2>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <Campo etiqueta="Fecha de intervención">
+              {(id) => (
+                <input
+                  id={id}
                   type="date"
                   required
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-transparent border-0 p-0 text-slate-900 text-sm font-medium focus:outline-hidden focus:ring-0"
+                  className="input"
                 />
-                <CalendarIcon className="w-4 h-4 text-slate-500 shrink-0 ml-2" />
-              </div>
-            </div>
+              )}
+            </Campo>
+            <Campo etiqueta="Estado final del equipo">
+              {(id) => (
+                <>
+                  <input
+                    id={id}
+                    type="text"
+                    list="lista-estados"
+                    value={finalStatus}
+                    onChange={(e) => setFinalStatus(e.target.value)}
+                    placeholder="FUNCIONAL"
+                    className="input"
+                  />
+                  <datalist id="lista-estados">
+                    {ESTADOS_SUGERIDOS.map((e) => (
+                      <option key={e} value={e} />
+                    ))}
+                  </datalist>
+                  {/* Atajos de un toque: con guantes no se escribe. */}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {ESTADOS_SUGERIDOS.map((e) => (
+                      <button
+                        key={e}
+                        type="button"
+                        aria-pressed={finalStatus.trim().toUpperCase() === e}
+                        onClick={() => setFinalStatus(e)}
+                        className="pill-tab min-h-10 px-3.5 text-[13px]"
+                      >
+                        {e.charAt(0) + e.slice(1).toLowerCase()}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </Campo>
+          </div>
 
-            {/* ESTADO FINAL DEL EQUIPO */}
-            <div className="border border-slate-300 rounded-xl p-2.5 bg-white">
-              <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-1">
-                ESTADO FINAL DEL EQUIPO
-              </label>
-              <input
-                id="input-final-status"
-                type="text"
-                list="lista-estados"
-                value={finalStatus}
-                onChange={(e) => setFinalStatus(e.target.value)}
-                placeholder="FUNCIONAL"
-                className="w-full bg-transparent border-0 p-0 text-slate-900 text-sm font-semibold placeholder:text-slate-400 focus:outline-hidden focus:ring-0"
-              />
-              <datalist id="lista-estados">
-                {ESTADOS_SUGERIDOS.map((e) => (
-                  <option key={e} value={e} />
-                ))}
-              </datalist>
+          {/* Clase de mantenimiento: tres casillas independientes,
+              igual que en el seguimiento en papel. */}
+          <fieldset className="mt-5">
+            <legend className="field-label">
+              Clase de mantenimiento{' '}
+              <span className="font-medium text-slate-500">· puede marcar más de una</span>
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              <CasillaClase id="btn-type-preventivo" activa={preventivo} onToggle={() => setPreventivo((v) => !v)} etiqueta="Preventivo" />
+              <CasillaClase id="btn-type-correctivo" activa={correctivo} onToggle={() => setCorrectivo((v) => !v)} etiqueta="Correctivo" />
+              <CasillaClase id="btn-type-otro" activa={otro} onToggle={() => setOtro((v) => !v)} etiqueta="Otro" />
             </div>
+          </fieldset>
 
-            {/* Clase de mantenimiento: tres casillas independientes,
-                igual que en el seguimiento en papel. Una intervencion
-                puede ser preventiva y correctiva a la vez. */}
-            <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
-                Clase de Mantenimiento
-              </label>
-              <p className="text-[11px] text-slate-500 mb-2">
-                Puede marcar más de una.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <CasillaClase
-                  id="btn-type-preventivo"
-                  activa={preventivo}
-                  onToggle={() => setPreventivo((v) => !v)}
-                  icono={<ShieldCheck className="w-3.5 h-3.5" />}
-                  etiqueta="Preventivo"
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <Campo etiqueta="Repuestos utilizados" ayuda="Separados por coma." className="lg:col-span-2">
+              {(id) => (
+                <input
+                  id={id}
+                  type="text"
+                  value={spareParts}
+                  onChange={(e) => setSpareParts(e.target.value)}
+                  placeholder="Ej. Cable sensor SpO2, Batería 12V"
+                  className="input"
                 />
-                <CasillaClase
-                  id="btn-type-correctivo"
-                  activa={correctivo}
-                  onToggle={() => setCorrectivo((v) => !v)}
-                  icono={<Wrench className="w-3.5 h-3.5" />}
-                  etiqueta="Correctivo"
+              )}
+            </Campo>
+            <Campo etiqueta="Comentarios de falla / trabajo realizado">
+              {(id) => (
+                <textarea
+                  id={id}
+                  rows={3}
+                  value={failureComments}
+                  onChange={(e) => setFailureComments(e.target.value)}
+                  className="input"
                 />
-                <CasillaClase
-                  id="btn-type-otro"
-                  activa={otro}
-                  onToggle={() => setOtro((v) => !v)}
-                  icono={<MoreHorizontal className="w-3.5 h-3.5" />}
-                  etiqueta="Otro"
+              )}
+            </Campo>
+            <Campo etiqueta="Observaciones adicionales / recomendaciones">
+              {(id) => (
+                <textarea
+                  id={id}
+                  rows={3}
+                  value={additionalObservations}
+                  onChange={(e) => setAdditionalObservations(e.target.value)}
+                  className="input"
                 />
-              </div>
-            </div>
+              )}
+            </Campo>
+          </div>
+        </section>
 
-            {/* Repuestos Utilizados */}
-            <div>
-              <input
-                id="input-spare-parts"
-                type="text"
-                value={spareParts}
-                onChange={(e) => setSpareParts(e.target.value)}
-                placeholder="Repuestos Utilizados (Separados por coma)"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              />
-            </div>
-
-            {/* Comentarios de Falla / Trabajo Realizado */}
-            <div>
-              <textarea
-                id="textarea-failure-comments"
-                rows={3}
-                value={failureComments}
-                onChange={(e) => setFailureComments(e.target.value)}
-                placeholder="Comentarios de Falla / Trabajo Realizado"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              />
-            </div>
-
-            {/* Observaciones Adicionales / Recomendaciones */}
-            <div>
-              <textarea
-                id="textarea-additional-observations"
-                rows={3}
-                value={additionalObservations}
-                onChange={(e) => setAdditionalObservations(e.target.value)}
-                placeholder="Observaciones Adicionales / Recomendaciones"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              />
-            </div>
-
+        {/* Barra de guardado: fija sobre la navegación en el celular,
+            al final del formulario en el portátil. */}
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(15,23,42,0.06)] lg:static lg:col-span-2 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
+          <div className="mx-auto flex max-w-md gap-2.5 lg:max-w-none lg:justify-end">
+            <button type="button" id="btn-register-cancel" onClick={onCancel} className="btn btn-ghost px-5">
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              id="btn-register-submit"
+              disabled={isSubmitting}
+              className="btn btn-primary min-w-0 flex-1 px-4 lg:flex-none lg:px-10"
+            >
+              <Save className="hidden size-4 sm:block" />
+              {isSubmitting ? 'Guardando…' : 'Registrar mantenimiento'}
+            </button>
           </div>
         </div>
-
-        {/* Action Buttons matching Image 1 */}
-        <div className="space-y-2.5 pt-2">
-          
-          {/* Cancelar */}
-          <button
-            type="button"
-            id="btn-register-cancel"
-            onClick={onCancel}
-            className="w-full py-3 px-4 bg-white border border-blue-600 text-blue-700 hover:bg-blue-50 active:bg-blue-100 font-semibold rounded-xl text-sm transition-colors text-center shadow-2xs"
-          >
-            Cancelar
-          </button>
-
-          {/* Registrar Mantenimiento */}
-          <button
-            type="submit"
-            id="btn-register-submit"
-            disabled={isSubmitting}
-            className="w-full py-3.5 px-4 bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-blue-700/20 flex items-center justify-center gap-2"
-          >
-            <Save className="w-4 h-4" />
-            <span>{isSubmitting ? 'Guardando en IndexedDB...' : 'Registrar Mantenimiento'}</span>
-          </button>
-
-        </div>
-
       </form>
-
     </div>
   );
 };
@@ -517,21 +450,10 @@ const CasillaClase: React.FC<{
   id: string;
   activa: boolean;
   onToggle: () => void;
-  icono: React.ReactNode;
   etiqueta: string;
-}> = ({ id, activa, onToggle, icono, etiqueta }) => (
-  <button
-    type="button"
-    id={id}
-    onClick={onToggle}
-    aria-pressed={activa}
-    className={`px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
-      activa
-        ? 'bg-blue-600 text-white shadow-xs'
-        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
-    }`}
-  >
-    {icono}
-    <span>{etiqueta}</span>
+}> = ({ id, activa, onToggle, etiqueta }) => (
+  <button type="button" id={id} onClick={onToggle} aria-pressed={activa} className="pill-tab px-5">
+    {activa && <Check className="size-4" strokeWidth={3} />}
+    {etiqueta}
   </button>
 );

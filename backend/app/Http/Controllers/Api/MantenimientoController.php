@@ -63,7 +63,7 @@ class MantenimientoController extends Controller
     /** POST /api/mantenimientos — alta desde la app estando en linea. */
     public function store(Request $request): JsonResponse
     {
-        $mantenimiento = $this->servicio->guardar($request->all(), 'app');
+        $mantenimiento = $this->reportes->conCandado(fn () => $this->servicio->guardar($request->all(), 'app'));
 
         return response()->json($mantenimiento->load('dispositivo'), 201);
     }
@@ -94,7 +94,11 @@ class MantenimientoController extends Controller
         $mantenimiento = Mantenimiento::findOrFail($id);
         $numero = $mantenimiento->numero_reporte;
 
-        return DB::transaction(function () use ($mantenimiento, $numero, $request) {
+        return $this->reportes->conCandado(fn () => DB::transaction(function () use ($mantenimiento, $numero, $request) {
+            // Queda como lapida para la bajada, pero suelta su numero: el
+            // consecutivo no debe contar un reporte que ya no existe.
+            $mantenimiento->numero_reporte = null;
+            $mantenimiento->save();
             $mantenimiento->delete();
 
             $movidos = 0;
@@ -106,7 +110,7 @@ class MantenimientoController extends Controller
                 'eliminado'       => $numero,
                 'reportes_movidos' => $movidos,
             ]);
-        });
+        }));
     }
 
     /* ------------------------------------------------------------------ */
@@ -161,7 +165,7 @@ class MantenimientoController extends Controller
             ], 422);
         }
 
-        return DB::transaction(function () use ($request, $numero) {
+        return $this->reportes->conCandado(fn () => DB::transaction(function () use ($request, $numero) {
             $movidos = $this->reportes->abrirHueco($numero);
 
             $datos = $request->all();
@@ -176,7 +180,7 @@ class MantenimientoController extends Controller
                     ? "Se insertó como reporte {$numero} y se corrieron {$movidos} reporte(s) posteriores."
                     : "Se insertó como reporte {$numero}.",
             ], 201);
-        });
+        }));
     }
 
     /**
@@ -188,10 +192,10 @@ class MantenimientoController extends Controller
      */
     public function compactarReportes(Request $request): JsonResponse
     {
-        $resultado = $this->reportes->compactar(
+        $resultado = $this->reportes->conCandado(fn () => $this->reportes->compactar(
             $request->integer('desde') ?: 1,
             $request->boolean('simular')
-        );
+        ));
 
         return response()->json($resultado);
     }

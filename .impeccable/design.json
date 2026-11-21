@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-21T00:00:00Z",
+  "title": "Design System: Biomédica · Clínica del Niño",
+  "extensions": {
+    "colorMeta": {
+      "action-blue": { "role": "primary", "displayName": "Action Blue", "canonical": "oklch(48.8% 0.243 264.376)", "tonalRamp": ["#172554", "#1e3a8a", "#1e40af", "#1d4ed8", "#2563eb", "#60a5fa", "#bfdbfe", "#eff6ff"] },
+      "action-blue-pressed": { "role": "primary", "displayName": "Action Blue Pressed", "canonical": "oklch(42.4% 0.199 265.638)" },
+      "action-blue-deep": { "role": "primary", "displayName": "Action Blue Deep", "canonical": "oklch(37.9% 0.146 265.522)" },
+      "focus-blue": { "role": "primary", "displayName": "Focus Blue", "canonical": "oklch(54.6% 0.245 262.881)" },
+      "info-wash": { "role": "primary", "displayName": "Info Wash", "canonical": "oklch(97% 0.014 254.604)" },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "oklch(20.8% 0.042 265.755)", "tonalRamp": ["#020617", "#0f172a", "#334155", "#475569", "#64748b", "#94a3b8", "#e2e8f0", "#f8fafc"] },
+      "ink-soft": { "role": "neutral", "displayName": "Ink Soft", "canonical": "oklch(37.2% 0.044 257.287)" },
+      "body-slate": { "role": "neutral", "displayName": "Body Slate", "canonical": "oklch(44.6% 0.043 257.281)" },
+      "meta-slate": { "role": "neutral", "displayName": "Meta Slate", "canonical": "oklch(55.4% 0.046 257.417)" },
+      "quiet-slate": { "role": "neutral", "displayName": "Quiet Slate", "canonical": "oklch(70.4% 0.04 256.788)" },
+      "field-stroke": { "role": "neutral", "displayName": "Field Stroke", "canonical": "oklch(86.9% 0.022 252.894)" },
+      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "oklch(92.9% 0.013 255.508)" },
+      "soft-surface": { "role": "neutral", "displayName": "Soft Surface", "canonical": "oklch(96.8% 0.007 247.896)" },
+      "whisper": { "role": "neutral", "displayName": "Whisper", "canonical": "oklch(98.4% 0.003 247.858)" },
+      "canvas": { "role": "neutral", "displayName": "Canvas", "canonical": "#ffffff" },
+      "status-ok": { "role": "status", "displayName": "Status OK (Emerald)", "canonical": "oklch(50.8% 0.118 165.612)", "tonalRamp": ["#022c22", "#064e3b", "#047857", "#059669", "#10b981", "#6ee7b7", "#d1fae5", "#ecfdf5"] },
+      "status-ok-wash": { "role": "status", "displayName": "OK Wash", "canonical": "oklch(97.9% 0.021 166.113)" },
+      "status-wait": { "role": "status", "displayName": "Status Wait (Amber)", "canonical": "oklch(82.8% 0.189 84.429)", "tonalRamp": ["#451a03", "#78350f", "#b45309", "#f59e0b", "#fbbf24", "#fcd34d", "#fef3c7", "#fffbeb"] },
+      "status-wait-wash": { "role": "status", "displayName": "Wait Wash", "canonical": "oklch(98.7% 0.022 95.277)" },
+      "status-out": { "role": "status", "displayName": "Status Out (Rose)", "canonical": "oklch(51.4% 0.222 16.935)", "tonalRamp": ["#4c0519", "#881337", "#be123c", "#e11d48", "#f43f5e", "#fda4af", "#ffe4e6", "#fff1f2"] },
+      "status-out-wash": { "role": "status", "displayName": "Out Wash", "canonical": "oklch(96.9% 0.015 12.422)" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The one H1 per screen; 28px on phone, 36px at lg, balanced wrap." },
+      "headline": { "displayName": "Headline", "purpose": "Section heads, sheet and card titles; 20px to 24px at lg." },
+      "title": { "displayName": "Title", "purpose": "List-row primary text and header user name." },
+      "body": { "displayName": "Body", "purpose": "Lead paragraphs and all input text (16px so phones never zoom)." },
+      "meta": { "displayName": "Meta", "purpose": "Row secondary lines, header subtitle, hint blocks." },
+      "label": { "displayName": "Label", "purpose": "Buttons, pill-tabs and field labels; 12px for badges and kv labels." }
+    },
+    "shadows": [
+      { "name": "bar-lift", "value": "0 -4px 16px rgba(15,23,42,0.06)", "purpose": "Fixed save bar on Registrar, casting upward." },
+      { "name": "capture-glow", "value": "0 4px 14px rgba(29,78,216,0.35)", "purpose": "The bottom-nav capture pill only." },
+      { "name": "sheet-rise", "value": "0 -8px 40px rgba(15,23,42,0.18)", "purpose": "Bottom sheets on the phone." },
+      { "name": "sheet-float", "value": "0 24px 64px rgba(15,23,42,0.25)", "purpose": "Centered dialogs from sm." },
+      { "name": "popover-float", "value": "0 12px 40px rgba(15,23,42,0.18)", "purpose": "The install prompt card." }
+    ],
+    "motion": [
+      { "name": "sheet-in", "value": "320ms cubic-bezier(0.16, 1, 0.3, 1); from translateY(24px), opacity 0", "purpose": "Sheet and dialog entrance." },
+      { "name": "color-transition", "value": "Tailwind transition-colors, 150ms cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Hover and press on buttons, pills, rows and inputs." },
+      { "name": "reduced-motion", "value": "animation and transition durations forced to 1ms", "purpose": "prefers-reduced-motion: reduce." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The capture/save pill. One per screen; 56px large variant for the main CTA.",
+      "html": "<button class=\"ds-btn ds-btn-primary\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Registrar mantenimiento</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 9999px; font-family: Montserrat, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; border: none; cursor: pointer; transition: background-color 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms; } .ds-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; } .ds-btn-primary { background: #1d4ed8; color: #fff; } .ds-btn-primary:hover { background: #1e40af; } .ds-btn-primary:active { background: #1e3a8a; }"
+    },
+    {
+      "name": "Ink Button",
+      "kind": "button",
+      "refersTo": "button-ink",
+      "description": "Secondary confirm in ink.",
+      "html": "<button class=\"ds-btn-ink\">Guardar equipo</button>",
+      "css": ".ds-btn-ink { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 9999px; border: none; background: #0f172a; color: #fff; font-family: Montserrat, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color 150ms; } .ds-btn-ink:hover { background: #334155; } .ds-btn-ink:active { background: #1e293b; } .ds-btn-ink:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "The second half of the dual CTA, under a primary pill.",
+      "html": "<button class=\"ds-btn-outline\">Ver historial</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 9999px; border: 2px solid #0f172a; background: #fff; color: #0f172a; font-family: Montserrat, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color 150ms; } .ds-btn-outline:hover { background: #f1f5f9; } .ds-btn-outline:active { background: #e2e8f0; } .ds-btn-outline:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Cancel and tertiary actions; the most-used button.",
+      "html": "<button class=\"ds-btn-ghost\">Cancelar</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 9999px; border: 2px solid rgba(15,23,42,0.12); background: #fff; color: #0f172a; font-family: Montserrat, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color 150ms, border-color 150ms; } .ds-btn-ghost:hover { border-color: rgba(15,23,42,0.25); background: #f8fafc; } .ds-btn-ghost:active { background: #f1f5f9; } .ds-btn-ghost:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Pill Tabs",
+      "kind": "chip",
+      "refersTo": "pill-tab",
+      "description": "Filters and desk navigation; ink when on.",
+      "html": "<div class=\"ds-tabs\"><button class=\"ds-pill-tab\" aria-pressed=\"true\">Todos</button><button class=\"ds-pill-tab\" aria-pressed=\"false\">Funcional</button><button class=\"ds-pill-tab\" aria-pressed=\"false\">Repuestos</button></div>",
+      "css": ".ds-tabs { display: flex; gap: 8px; flex-wrap: wrap; } .ds-pill-tab { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 9999px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font-family: Montserrat, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: border-color 150ms, background-color 150ms; } .ds-pill-tab:hover { border-color: #94a3b8; } .ds-pill-tab[aria-pressed=\"true\"] { background: #0f172a; border-color: #0f172a; color: #fff; } .ds-pill-tab:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labeled 48px field, 8px corners, 16px text.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-label\" for=\"ds-serie\">Número de serie</label><input id=\"ds-serie\" class=\"ds-input\" placeholder=\"Ej. SN-48213\"><p class=\"ds-hint\">Está en la placa del equipo.</p></div>",
+      "css": ".ds-field { font-family: Montserrat, Helvetica, Arial, sans-serif; max-width: 360px; } .ds-label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 700; color: #0f172a; } .ds-input { display: block; width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; font: inherit; font-size: 16px; transition: border-color 150ms; } .ds-input::placeholder { color: #64748b; } .ds-input:hover { border-color: #94a3b8; } .ds-input:focus { outline: none; border-color: #2563eb; box-shadow: inset 0 0 0 1px #2563eb; } .ds-hint { margin-top: 6px; font-size: 12px; color: #64748b; }"
+    },
+    {
+      "name": "Status Badges",
+      "kind": "chip",
+      "refersTo": "badge-ok",
+      "description": "Solid status pills for equipment state.",
+      "html": "<div class=\"ds-badges\"><span class=\"ds-badge ds-ok\">Funcional</span><span class=\"ds-badge ds-wait\">Repuestos</span><span class=\"ds-badge ds-out\">Fuera serv.</span><span class=\"ds-badge ds-none\">Sin estado</span></div>",
+      "css": ".ds-badges { display: flex; gap: 8px; flex-wrap: wrap; } .ds-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 9999px; font-family: Montserrat, Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1; font-weight: 700; white-space: nowrap; } .ds-ok { background: #047857; color: #fff; } .ds-wait { background: #fbbf24; color: #0f172a; } .ds-out { background: #be123c; color: #fff; } .ds-none { background: #e2e8f0; color: #334155; }"
+    },
+    {
+      "name": "Ink Strip",
+      "kind": "card",
+      "refersTo": "ink-strip",
+      "description": "The audit/export band: ink plane, 32px corners, white plus outline pill pair.",
+      "html": "<section class=\"ds-strip\"><h3>Auditoría y habilitación anual</h3><p>Descargue el reporte consolidado anual o mensual.</p><div class=\"ds-strip-actions\"><button class=\"ds-strip-solid\">Descarga anual</button><button class=\"ds-strip-line\">Descarga mes</button></div></section>",
+      "css": ".ds-strip { background: #0f172a; color: #fff; border-radius: 32px; padding: 24px; font-family: Montserrat, Helvetica, Arial, sans-serif; max-width: 380px; } .ds-strip h3 { margin: 0; font-size: 18px; font-weight: 500; line-height: 1.375; } .ds-strip p { margin: 8px 0 0; font-size: 14px; line-height: 1.625; color: #cbd5e1; } .ds-strip-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; } .ds-strip-solid, .ds-strip-line { min-height: 48px; padding: 0 12px; border-radius: 9999px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color 150ms; } .ds-strip-solid { background: #fff; color: #0f172a; border: none; } .ds-strip-solid:hover { background: #f1f5f9; } .ds-strip-line { background: transparent; color: #fff; border: 2px solid rgba(255,255,255,0.35); } .ds-strip-line:hover { background: rgba(255,255,255,0.1); } .ds-strip button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Bottom Nav",
+      "kind": "nav",
+      "refersTo": "button-primary",
+      "description": "Phone nav: ink pill on the current side slot, blue capture pill in the center.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item is-on\"><span class=\"ds-nav-ind\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/></svg></span>Inicio</button><button class=\"ds-nav-capture\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Registrar</button><button class=\"ds-nav-item\"><span class=\"ds-nav-ind\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/></svg></span>Documentos</button></nav>",
+      "css": ".ds-nav { display: grid; grid-template-columns: repeat(3, 1fr); align-items: center; height: 72px; max-width: 420px; padding: 0 8px; background: #fff; border-top: 1px solid #e2e8f0; font-family: Montserrat, Helvetica, Arial, sans-serif; } .ds-nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: none; color: #64748b; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; transition: color 150ms; } .ds-nav-item:hover { color: #1e293b; } .ds-nav-ind { display: flex; align-items: center; justify-content: center; width: 56px; height: 32px; border-radius: 9999px; } .ds-nav-item.is-on { color: #0f172a; font-weight: 700; } .ds-nav-item.is-on .ds-nav-ind { background: #0f172a; color: #fff; } .ds-nav-capture { justify-self: center; display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 20px; border-radius: 9999px; border: none; background: #1d4ed8; color: #fff; font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 4px 14px rgba(29,78,216,0.35); cursor: pointer; transition: background-color 150ms; } .ds-nav-capture:hover { background: #1e40af; } .ds-nav-capture:active { background: #1e3a8a; } .ds-nav button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Card with Rows",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Hairline card, 24px corners, tappable rows with a status pill.",
+      "html": "<section class=\"ds-card\"><h3>Registros recientes</h3><button class=\"ds-row\"><span class=\"ds-num\">#13</span><span class=\"ds-main\"><b>Desfibrilador</b><small>Urgencias · 28 oct 2026</small></span><span class=\"ds-pill\">Funcional</span></button></section>",
+      "css": ".ds-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 24px; overflow: hidden; font-family: Montserrat, Helvetica, Arial, sans-serif; max-width: 380px; } .ds-card h3 { margin: 0; padding: 20px 20px 8px; font-size: 18px; font-weight: 500; letter-spacing: -0.015em; color: #0f172a; } .ds-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 20px; border: none; border-top: 1px solid #f1f5f9; background: #fff; text-align: left; font: inherit; cursor: pointer; transition: background-color 150ms; } .ds-row:hover { background: #f8fafc; } .ds-row:active { background: #f1f5f9; } .ds-row:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; } .ds-num { width: 40px; font-size: 13px; font-weight: 700; color: #64748b; } .ds-main { flex: 1; min-width: 0; } .ds-main b { display: block; font-size: 15px; color: #0f172a; } .ds-main small { display: block; font-size: 13px; color: #64748b; } .ds-pill { padding: 4px 10px; border-radius: 9999px; background: #047857; color: #fff; font-size: 12px; line-height: 1; font-weight: 700; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Thumb-Zone Logbook",
+    "overview": "A field logbook carried in one gloved hand. The world borrows a commerce design language (confident medium-weight type, full pill controls, large soft-cornered panels on a white canvas, a dual-CTA pairing) and renders it in the clinic app's own palette: slate ink, one action blue, and three status colors that mean exactly one thing each. Density is relaxed on the phone (48px minimum targets, one column, a sticky bar under the thumb) and opens into a two-column grid on the laptop without changing a single component.\n\nThe system is flat. Depth comes from tonal surfaces (white canvas, slate-100 soft panels, slate-900 ink strip) and from hairlines, never from gradients or stacked shadows. Shadows exist only on things that float above the page: the bottom bar, its capture pill, and dialogs.\n\nIt refuses the category default of hospital admin software: dense tables, uppercase section bars, gradient headers, and tiny icon-only controls.",
+    "keyCharacteristics": [
+      "One blue for one job: capturing and saving work.",
+      "Ink (slate-900) carries structure: headings, active tabs, secondary pills, the export strip.",
+      "Everything tappable is a pill at least 44px tall; primary actions are 48 to 56px.",
+      "Three surface tones (white, soft slate, ink) and nothing else.",
+      "Status is a solid colored pill, readable at arm's length."
+    ],
+    "rules": [
+      { "name": "The One Blue Rule", "body": "Action Blue fills only the capture/save action. Every other emphasis uses ink. If a screen has two blue pills, one of them is wrong.", "section": "colors" },
+      { "name": "The Status Means Status Rule", "body": "Emerald, amber and rose describe equipment and sync state only. They are never decoration, never category colors, never chart accents.", "section": "colors" },
+      { "name": "The Weight Means Role Rule", "body": "500 names, 700 acts, 400 reads. Never bold a heading; never set a button in medium.", "section": "typography" },
+      { "name": "The Sentence Case Rule", "body": "Labels, tabs, section heads and badges are sentence case at normal tracking. The system has no uppercase tracked labels.", "section": "typography" },
+      { "name": "The Only-What-Floats Rule", "body": "A shadow means \"this sits above the scroll.\" Anything in the page flow is flat.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do give every tappable control at least 44px of height; primary actions 48px, the screen's capture CTA 56px.",
+      "Do keep Action Blue for capture and save; use Ink pills and pill-tabs for every other emphasis.",
+      "Do pair a primary pill with an outline or ghost pill beneath it when a screen offers a second path.",
+      "Do put a sheet's or form's actions in a sticky bottom bar on the phone.",
+      "Do set form inputs at 16px and keep pinch-zoom enabled.",
+      "Do separate surfaces with tone (white, Soft Surface, Ink) and Hairline borders.",
+      "Do respect reduced motion: transitions and the sheet rise collapse to 1ms."
+    ],
+    "donts": [
+      "Don't use gradients anywhere.",
+      "Don't add shadows to cards or panels in the page flow; shadows are for floating bars and dialogs.",
+      "Don't use uppercase tracked labels, kickers or section bars.",
+      "Don't use emerald, amber or rose for anything but status.",
+      "Don't square off buttons or round off inputs; pills act, 8px fields take input.",
+      "Don't fall back to dense admin tables on the phone; lists are tappable rows with a status pill."
+    ]
+  }
+}

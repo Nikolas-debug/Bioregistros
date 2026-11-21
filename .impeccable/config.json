@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "montserrat",
+        "createdAt": "2026-11-21T21:27:42.933Z",
+        "reason": "pinned brief: user asked to redesign using meta.md, which names Montserrat as the fallback for Meta's proprietary Optimistic VF"
+      }
+    ]
+  }
+}

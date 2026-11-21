@@ -1,29 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  Download, 
-  Printer, 
-  Trash2, 
-  Edit3, 
-  CheckCircle2, 
-  AlertTriangle, 
-  XCircle, 
-  MapPin, 
-  Calendar, 
-  Clock, 
-  User, 
-  Wrench, 
-  FileText,
-  ShieldCheck,
-  Building2,
-  Share2
-} from 'lucide-react';
-import {
-  MaintenanceRecord,
-  grupoEstado,
-  etiquetaClases,
-  etiquetaReporte,
-} from '../types';
+import { Download, Trash2, Pencil, ShieldCheck } from 'lucide-react';
+import { EstadoBadge, Sheet } from './ui';
+import { MaintenanceRecord, etiquetaClases, etiquetaReporte, fechaCorta } from '../types';
 import { exportSingleRecordToExcel } from '../utils/excelExport';
 
 interface RecordDetailModalProps {
@@ -44,10 +22,6 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
@@ -61,205 +35,118 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200">
-        
-        {/* Header with Title & Action */}
-        <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-sky-900 p-5 text-white sticky top-0 z-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-sky-300 font-bold block">
-                Ficha Técnica de Mantenimiento
-              </span>
-              <h3 className="text-lg font-bold text-white leading-tight mt-0.5">
-                {record.equipment}
-              </h3>
-              <p className="text-xs text-blue-100 font-mono mt-0.5">
-                {record.id} • {record.brand} {record.model}
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-full text-blue-200 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+  const iniciales =
+    record.technicianName
+      ?.trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((p) => p[0])
+      .join('')
+      .toUpperCase() || '?';
 
-        {/* Content Body */}
-        <div className="p-5 space-y-4 text-xs">
-          
-          {/* Status & Maintenance Type Banner */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Estado Técnico</span>
-              <span className={`text-xs font-bold inline-flex items-center gap-1 mt-1 ${
-                grupoEstado(record.finalStatus) === 'funcional'
-                  ? 'text-emerald-700'
-                  : grupoEstado(record.finalStatus) === 'espera'
-                  ? 'text-amber-700'
-                  : 'text-rose-700'
-              }`}>
-                {record.finalStatus || 'Sin estado'}
-              </span>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Clase Intervención</span>
-              <span className="text-xs font-bold text-blue-900 inline-flex items-center gap-1 mt-1">
-                <Wrench className="w-3 h-3 text-blue-600" /> {etiquetaClases(record)}
-              </span>
-            </div>
-          </div>
-
-          {/* Section: Dispositivo */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 shadow-2xs">
-            <h4 className="font-bold text-slate-900 text-xs border-b border-slate-100 pb-1.5 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-blue-600" /> Identificación del Equipo
-            </h4>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div>
-                <span className="text-slate-400 text-[10px] block">N° de Serie</span>
-                <span className="font-mono font-bold text-slate-800">{record.serialNumber}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 text-[10px] block">Código Inventario</span>
-                <span className="font-mono font-bold text-slate-800">{record.inventoryCode}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 text-[10px] block">Servicio</span>
-                <span className="font-semibold text-slate-800">{record.service}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 text-[10px] block">Ubicación Específica</span>
-                <span className="font-semibold text-slate-800">{record.specificLocation || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Section: Detalles del Mantenimiento */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
-            <h4 className="font-bold text-slate-900 text-xs border-b border-slate-100 pb-1.5 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-blue-600" /> Registro Cronológico & Repuestos
-            </h4>
-            
-            <div className="flex items-center gap-4 text-slate-700">
-              <div className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>Fecha: <strong>{record.date}</strong></span>
-              </div>
-              {record.time && (
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Hora: <strong>{record.time}</strong></span>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Repuestos Utilizados:</span>
-              <p className="text-slate-800 font-medium bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1">
-                {record.spareParts || 'No se requirieron repuestos adicionales.'}
-              </p>
-            </div>
-
-            <div>
-              <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Trabajo Realizado / Descripción de Falla:</span>
-              <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-1 whitespace-pre-wrap leading-relaxed">
-                {record.failureComments}
-              </p>
-            </div>
-
-            {record.additionalObservations && (
-              <div>
-                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Observaciones / Recomendaciones:</span>
-                <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-1 whitespace-pre-wrap leading-relaxed">
-                  {record.additionalObservations}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Section: Firma Técnica */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs">
-                LM
-              </div>
-              <div>
-                <span className="font-bold text-slate-900 block">{record.technicianName}</span>
-                <span className="text-[11px] text-slate-500 font-mono">{etiquetaReporte(record)}</span>
-              </div>
-            </div>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3" /> Verificado
-            </span>
-          </div>
-
-          {/* Actions Bar */}
-          <div className="pt-2 space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => exportSingleRecordToExcel(record)}
-                className="py-2.5 px-3 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Exportar Excel</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onEdit(record)}
-                className="py-2.5 px-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-slate-600" />
-                <span>Editar Registro</span>
-              </button>
-            </div>
-
-            {/* Delete Record Section */}
-            {!confirmDelete ? (
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                className="w-full py-2 text-rose-600 hover:text-rose-800 text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Eliminar Registro</span>
-              </button>
-            ) : (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2 animate-in fade-in">
-                <p className="text-xs text-rose-800 font-semibold text-center">
-                  ¿Confirmar eliminación de este registro en IndexedDB?
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDelete(false)}
-                    className="py-1.5 bg-white border border-slate-300 text-slate-700 font-medium rounded-lg text-xs"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isDeleting}
-                    onClick={handleDelete}
-                    className="py-1.5 bg-rose-600 text-white font-bold rounded-lg text-xs"
-                  >
-                    {isDeleting ? 'Eliminando...' : 'Sí, Eliminar'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-          </div>
-
-        </div>
-
-      </div>
+  const Dato: React.FC<{ etiqueta: string; valor?: string; mono?: boolean }> = ({ etiqueta, valor, mono }) => (
+    <div>
+      <dt className="kv-label">{etiqueta}</dt>
+      <dd className={`kv-value ${mono ? 'font-mono text-sm' : ''}`}>{valor || '—'}</dd>
     </div>
+  );
+
+  return (
+    <Sheet
+      titulo={record.equipment}
+      subtitulo={
+        <>
+          <span className="font-bold text-slate-700 tabular-nums">{etiquetaReporte(record)}</span> ·{' '}
+          {record.brand} {record.model}
+        </>
+      }
+      onClose={onClose}
+      pie={
+        <>
+          <button type="button" onClick={() => onEdit(record)} className="btn btn-ghost flex-1">
+            <Pencil className="size-4" /> Editar
+          </button>
+          <button type="button" onClick={() => exportSingleRecordToExcel(record)} className="btn btn-ink flex-1">
+            <Download className="size-4" /> Exportar Excel
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <EstadoBadge estado={record.finalStatus} />
+        <span className="badge badge-info">{etiquetaClases(record)}</span>
+        {record.finalStatus && <span className="text-[13px] text-slate-500">{record.finalStatus}</span>}
+      </div>
+
+      <dl className="soft mt-5 grid grid-cols-2 gap-x-4 gap-y-4 p-5">
+        <Dato etiqueta="N° de serie" valor={record.serialNumber} mono />
+        <Dato etiqueta="Código inventario" valor={record.inventoryCode} mono />
+        <Dato etiqueta="Servicio" valor={record.service} />
+        <Dato etiqueta="Ubicación específica" valor={record.specificLocation} />
+        <Dato etiqueta="Fecha" valor={fechaCorta(record.date)} />
+        <Dato etiqueta="Hora" valor={record.time} />
+      </dl>
+
+      <div className="mt-6 space-y-5">
+        <div>
+          <h3 className="kv-label">Repuestos utilizados</h3>
+          <p className="mt-1 text-[15px] text-slate-900">
+            {record.spareParts || 'No se requirieron repuestos adicionales.'}
+          </p>
+        </div>
+        <div>
+          <h3 className="kv-label">Trabajo realizado / descripción de falla</h3>
+          <p className="mt-1 text-[15px] leading-relaxed whitespace-pre-wrap text-slate-900">
+            {record.failureComments || '—'}
+          </p>
+        </div>
+        {record.additionalObservations && (
+          <div>
+            <h3 className="kv-label">Observaciones / recomendaciones</h3>
+            <p className="mt-1 text-[15px] leading-relaxed whitespace-pre-wrap text-slate-900">
+              {record.additionalObservations}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Firma técnica */}
+      <div className="mt-6 flex items-center justify-between gap-3 border-t border-slate-200 pt-5">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
+            {iniciales}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-[15px] font-bold text-slate-900">{record.technicianName}</span>
+            <span className="block text-[13px] text-slate-500">Técnico responsable</span>
+          </span>
+        </div>
+        <span className="badge badge-ok">
+          <ShieldCheck className="size-3.5" /> Verificado
+        </span>
+      </div>
+
+      {/* Eliminar */}
+      <div className="mt-6">
+        {!confirmDelete ? (
+          <button type="button" onClick={() => setConfirmDelete(true)} className="btn-text text-rose-700 hover:bg-rose-50">
+            <Trash2 className="size-4" /> Eliminar registro
+          </button>
+        ) : (
+          <div className="rounded-3xl bg-rose-50 p-4">
+            <p className="text-sm font-bold text-rose-900">¿Eliminar este registro?</p>
+            <p className="mt-1 text-[13px] text-rose-800">Se borra en el servidor y en este dispositivo.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <button type="button" onClick={() => setConfirmDelete(false)} className="btn btn-ghost bg-white">
+                Cancelar
+              </button>
+              <button type="button" disabled={isDeleting} onClick={handleDelete} className="btn btn-danger">
+                {isDeleting ? 'Eliminando…' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Sheet>
   );
 };

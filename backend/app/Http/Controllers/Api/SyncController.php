@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Mantenimiento;
+use App\Services\NumeroReporteService;
 use App\Services\RegistroSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -19,7 +21,10 @@ use Illuminate\Validation\ValidationException;
  */
 class SyncController extends Controller
 {
-    public function __construct(private RegistroSyncService $servicio) {}
+    public function __construct(
+        private RegistroSyncService $servicio,
+        private NumeroReporteService $reportes,
+    ) {}
 
     /** GET /api/sync/ping — para saber si hay servidor, no solo wifi. */
     public function ping(): JsonResponse
@@ -61,44 +66,46 @@ class SyncController extends Controller
         // Una sola tanda de busquedas para todo el lote. Sin esto, cada fila
         // hace media docena de viajes a la base y un envio de ochenta se
         // pasa de los treinta segundos que PHP le da a la peticion.
-        $this->servicio->abrirLote($registros);
+        $this->reportes->conCandado(function () use ($registros, &$aceptados, &$rechazados) {
+            $this->servicio->abrirLote($registros);
 
-        try {
-            foreach ($registros as $indice => $registro) {
-                $uuidLocal = $registro['uuid'] ?? $registro['idLocal'] ?? null;
+            try {
+                foreach ($registros as $indice => $registro) {
+                    $uuidLocal = $registro['uuid'] ?? $registro['idLocal'] ?? null;
 
-                try {
-                    $mantenimiento = $this->servicio->guardar($registro, $registro['origen'] ?? 'offline');
+                    try {
+                        $mantenimiento = $this->servicio->guardar($registro, $registro['origen'] ?? 'offline');
 
-                    $aceptados[] = [
-                        'uuid'           => $uuidLocal ?? $mantenimiento->uuid,
-                        'id'             => $mantenimiento->id,
-                        'numero_reporte' => $mantenimiento->numero_reporte,
-                    ];
-                } catch (ValidationException $e) {
-                    $rechazados[] = [
-                        'uuid'    => $uuidLocal,
-                        'fila'    => $indice + 1,
-                        'motivo'  => 'validacion',
-                        'errores' => $e->errors(),
-                    ];
-                } catch (\Throwable $e) {
-                    Log::error('Fallo sincronizando mantenimiento', [
-                        'uuid'  => $uuidLocal,
-                        'error' => $e->getMessage(),
-                    ]);
+                        $aceptados[] = [
+                            'uuid'           => $uuidLocal ?? $mantenimiento->uuid,
+                            'id'             => $mantenimiento->id,
+                            'numero_reporte' => $mantenimiento->numero_reporte,
+                        ];
+                    } catch (ValidationException $e) {
+                        $rechazados[] = [
+                            'uuid'    => $uuidLocal,
+                            'fila'    => $indice + 1,
+                            'motivo'  => 'validacion',
+                            'errores' => $e->errors(),
+                        ];
+                    } catch (\Throwable $e) {
+                        Log::error('Fallo sincronizando mantenimiento', [
+                            'uuid'  => $uuidLocal,
+                            'error' => $e->getMessage(),
+                        ]);
 
-                    $rechazados[] = [
-                        'uuid'    => $uuidLocal,
-                        'fila'    => $indice + 1,
-                        'motivo'  => 'servidor',
-                        'errores' => ['general' => [$e->getMessage()]],
-                    ];
+                        $rechazados[] = [
+                            'uuid'    => $uuidLocal,
+                            'fila'    => $indice + 1,
+                            'motivo'  => 'servidor',
+                            'errores' => ['general' => [$e->getMessage()]],
+                        ];
+                    }
                 }
+            } finally {
+                $this->servicio->cerrarLote();
             }
-        } finally {
-            $this->servicio->cerrarLote();
-        }
+        });
 
         return response()->json([
             'aceptados'  => $aceptados,
@@ -146,11 +153,33 @@ class SyncController extends Controller
     {
         $limite = max(1, min((int) $request->query('limite', 1000), 2000));
         $desde  = $request->query('desde');
+        $despuesDeId = (int) $request->query('despues_de_id', 0);
 
-        $consulta = Mantenimiento::with('dispositivo');
+        // Con los borrados: cada equipo tiene que enterarse para quitarlos.
+        $consulta = Mantenimiento::withTrashed()->with('dispositivo');
 
         if ($desde) {
-            $consulta->where('updated_at', '>=', $desde);
+            // updated_at se guarda sin zona, en la hora de la aplicacion.
+            // El celular manda la marca en UTC ("...Z") y PostgreSQL ignora
+            // la zona al comparar: sin convertirla, la consulta miraba cinco
+            // horas en el futuro y un dispositivo dejaba de recibir lo que
+            // subia el otro.
+            try {
+                $desde = Carbon::parse($desde)->setTimezone(config('app.timezone'));
+            } catch (\Throwable) {
+                return response()->json(['mensaje' => 'El parametro desde no es una fecha valida.'], 422);
+            }
+
+            // Cursor (updated_at, id): una renumeracion toca cientos de filas
+            // en el mismo segundo, y paginar solo por la hora repetia la
+            // misma pagina sin avanzar.
+            if ($despuesDeId > 0) {
+                $consulta->where(fn ($q) => $q
+                    ->where('updated_at', '>', $desde)
+                    ->orWhere(fn ($q) => $q->where('updated_at', $desde)->where('id', '>', $despuesDeId)));
+            } else {
+                $consulta->where('updated_at', '>=', $desde);
+            }
         }
 
         // Se pide uno de mas para saber si quedaron registros por fuera.
@@ -171,7 +200,12 @@ class SyncController extends Controller
             'total'           => $registros->count(),
             'hay_mas'         => $hayMas,
             'siguiente_desde' => $siguienteDesde,
-            'registros'       => $registros->map(fn ($m) => [
+            'siguiente_id'    => $hayMas && $registros->isNotEmpty() ? $registros->last()->id : null,
+            'registros'       => $registros->map(fn ($m) => $m->trashed() ? [
+                'id'        => $m->uuid,
+                'eliminado' => true,
+                'updatedAt' => $m->updated_at->getTimestampMs(),
+            ] : [
                 'id'                     => $m->uuid,
                 'idServidor'             => $m->id,
                 'numeroReporte'          => $m->numero_reporte,

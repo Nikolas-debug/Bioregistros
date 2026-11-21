@@ -167,6 +167,8 @@ export interface RespuestaDescarga {
   hay_mas?: boolean;
   /** Desde dónde pedir el siguiente lote. */
   siguiente_desde?: string | null;
+  /** Desempate dentro del mismo segundo: id del último registro del lote. */
+  siguiente_id?: number | null;
   total?: number;
 }
 
@@ -303,9 +305,10 @@ export const api = {
    * `hay_mas` avisa que quedaron registros por fuera del lote y hay que
    * volver a pedir desde `siguiente_desde`.
    */
-  descargar(desde?: string, limite = 1000): Promise<RespuestaDescarga> {
+  descargar(desde?: string, limite = 1000, despuesDeId?: number): Promise<RespuestaDescarga> {
     const q = new URLSearchParams();
     if (desde) q.set('desde', desde);
+    if (desde && despuesDeId) q.set('despues_de_id', String(despuesDeId));
     q.set('limite', String(limite));
 
     return request<RespuestaDescarga>(

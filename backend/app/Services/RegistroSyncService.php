@@ -77,7 +77,7 @@ class RegistroSyncService
             }
         }
 
-        $this->enLote = Mantenimiento::whereIn('uuid', array_values(array_unique($uuids)))
+        $this->enLote = Mantenimiento::withTrashed()->whereIn('uuid', array_values(array_unique($uuids)))
             ->get()
             ->keyBy('uuid')
             ->all();
@@ -159,7 +159,9 @@ class RegistroSyncService
             return $this->reportes->siguiente();
         }
 
-        return ++$this->ultimoNumero;
+        // Solo se reserva en memoria cuando la fila confirma (ver guardar):
+        // si falla, el numero sigue libre para la siguiente.
+        return $this->ultimoNumero + 1;
     }
 
     /**
@@ -199,7 +201,45 @@ class RegistroSyncService
             throw new ValidationException($validador);
         }
 
-        return DB::transaction(function () use ($datos, $origen) {
+        // Lo que se decide antes de escribir. Va fuera de la transaccion para
+        // que un rechazo no deje nada a medias, ni en la base ni en la
+        // memoria del lote.
+        $existente = $this->enLote !== null
+            ? ($this->enLote[$datos['uuid']] ?? null)
+            : Mantenimiento::withTrashed()->where('uuid', $datos['uuid'])->first();
+
+        // Lo borraron desde otro dispositivo. Reenviarlo (una edicion hecha
+        // en un equipo que aun no se habia enterado) no debe revivirlo.
+        if ($existente?->trashed()) {
+            throw ValidationException::withMessages([
+                'uuid' => ['Este registro fue eliminado desde otro dispositivo.'],
+            ]);
+        }
+
+        // Si el numero explicito ya lo tiene otro registro, se avisa en vez
+        // de pisarlo o de renumerar en silencio.
+        if (! $existente && $datos['numero_reporte']) {
+            $ocupado = $this->enLote !== null
+                ? in_array((int) $datos['numero_reporte'], $this->numerosTomados, true)
+                : Mantenimiento::where('numero_reporte', $datos['numero_reporte'])->exists();
+
+            if ($ocupado) {
+                throw ValidationException::withMessages([
+                    'numero_reporte' => [
+                        "El reporte {$datos['numero_reporte']} ya existe en la base de datos.",
+                    ],
+                ]);
+            }
+        }
+
+        // El numero de reporte se asigna una sola vez. Si el registro ya
+        // existe conserva el suyo; si viene uno explicito (importacion de un
+        // seguimiento historico) se respeta tal cual.
+        $numero = $existente?->numero_reporte
+            ?? $datos['numero_reporte']
+            ?? $this->siguienteNumero();
+
+        [$dispositivo, $mantenimiento] = DB::transaction(function () use ($datos, $origen, $existente, $numero) {
 
             // --- 1. El equipo ---
             $dispositivo = $this->buscarDispositivo($datos['serie'], $datos['inventario']);
@@ -230,36 +270,8 @@ class RegistroSyncService
             }
 
             $dispositivo->save();
-            $this->recordarEquipo($dispositivo);
 
             // --- 2. El mantenimiento ---
-            $existente = $this->enLote !== null
-                ? ($this->enLote[$datos['uuid']] ?? null)
-                : Mantenimiento::where('uuid', $datos['uuid'])->first();
-
-            // El numero de reporte se asigna una sola vez. Si el registro ya
-            // existe conserva el suyo; si viene uno explicito (importacion
-            // de un seguimiento historico) se respeta tal cual.
-            $numero = $existente?->numero_reporte
-                ?? $datos['numero_reporte']
-                ?? $this->siguienteNumero();
-
-            // Si el numero explicito ya lo tiene otro registro, se avisa en
-            // vez de pisarlo o de renumerar en silencio.
-            if (! $existente && $datos['numero_reporte']) {
-                $ocupado = $this->enLote !== null
-                    ? in_array((int) $datos['numero_reporte'], $this->numerosTomados, true)
-                    : Mantenimiento::where('numero_reporte', $datos['numero_reporte'])->exists();
-
-                if ($ocupado) {
-                    throw ValidationException::withMessages([
-                        'numero_reporte' => [
-                            "El reporte {$datos['numero_reporte']} ya existe en la base de datos.",
-                        ],
-                    ]);
-                }
-            }
-
             $mantenimiento = $existente ?? new Mantenimiento(['uuid' => $datos['uuid']]);
 
             $mantenimiento->fill([
@@ -284,20 +296,25 @@ class RegistroSyncService
 
             $mantenimiento->save();
 
-            // Que las filas siguientes del lote vean lo que acaba de entrar:
-            // si el mismo uuid viene repetido en el envio, la segunda vez
-            // tiene que actualizar, no chocar.
-            if ($this->enLote !== null) {
-                $this->enLote[$datos['uuid']] = $mantenimiento;
-                $this->numerosTomados[] = (int) $numero;
-
-                if ((int) $numero > $this->ultimoNumero) {
-                    $this->ultimoNumero = (int) $numero;
-                }
-            }
-
-            return $mantenimiento;
+            return [$dispositivo, $mantenimiento];
         });
+
+        // Ya confirmado: ahora si, que las filas siguientes del lote lo vean.
+        // Antes se anotaba dentro de la transaccion, y si esta se deshacia
+        // el lote recordaba un equipo que no existia y las filas siguientes
+        // de ese equipo fallaban por llave foranea.
+        $this->recordarEquipo($dispositivo);
+
+        if ($this->enLote !== null) {
+            $this->enLote[$datos['uuid']] = $mantenimiento;
+            $this->numerosTomados[] = (int) $numero;
+
+            if ((int) $numero > $this->ultimoNumero) {
+                $this->ultimoNumero = (int) $numero;
+            }
+        }
+
+        return $mantenimiento;
     }
 
     /**

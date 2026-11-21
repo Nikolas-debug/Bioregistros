@@ -146,30 +146,30 @@ export const InstalarApp: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-x-3 bottom-20 z-40 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-96"
+      className="fixed inset-x-3 bottom-[calc(84px+env(safe-area-inset-bottom))] z-40 lg:inset-x-auto lg:right-8 lg:bottom-8 lg:w-96"
       role="dialog"
       aria-label="Instalar la aplicación"
     >
-      <div className="rounded-2xl border border-blue-200 bg-white shadow-xl shadow-slate-900/10">
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.18)]">
         {instalada ? (
           <div className="flex items-center gap-3 p-4">
-            <CheckCircle2 className="h-6 w-6 shrink-0 text-green-600" />
-            <p className="text-sm font-semibold text-slate-800">
+            <CheckCircle2 className="size-6 shrink-0 text-emerald-700" />
+            <p className="text-sm font-bold text-slate-900">
               Lista. Búsquela en la pantalla de inicio.
             </p>
           </div>
         ) : (
-          <div className="p-4">
+          <div className="p-5">
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600">
-                <Download className="h-5 w-5 text-white" />
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-slate-900">
+                <Download className="size-5 text-white" />
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-slate-900">
+                <p className="text-[15px] font-bold text-slate-900">
                   Instalar en este dispositivo
                 </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+                <p className="mt-0.5 text-[13px] leading-relaxed text-slate-600">
                   Queda con su icono en la pantalla de inicio y abre a pantalla
                   completa, con o sin señal.
                 </p>
@@ -178,9 +178,9 @@ export const InstalarApp: React.FC = () => {
               <button
                 onClick={cerrar}
                 aria-label="Ahora no"
-                className="-mr-1 -mt-1 shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className="btn-icon -mt-2 -mr-2 text-slate-500"
               >
-                <X className="h-4 w-4" />
+                <X className="size-5" />
               </button>
             </div>
 
@@ -188,30 +188,30 @@ export const InstalarApp: React.FC = () => {
             {evento ? (
               <button
                 onClick={instalar}
-                className="mt-3 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800"
+                className="btn btn-primary mt-4 w-full"
               >
                 Instalar
               </button>
             ) : instrucciones ? (
-              <ol className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
+              <ol className="mt-4 space-y-2.5 rounded-2xl bg-slate-100 p-4 text-[13px] text-slate-700">
                 <li className="flex items-center gap-2">
-                  <span className="font-bold text-slate-400">1.</span>
+                  <span className="font-bold text-slate-500 tabular-nums">1.</span>
                   <span className="flex items-center gap-1.5">
                     Toque
-                    <Share className="h-4 w-4 text-blue-600" />
+                    <Share className="size-4 text-blue-700" />
                     <strong>Compartir</strong>, abajo en Safari
                   </span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="font-bold text-slate-400">2.</span>
+                  <span className="font-bold text-slate-500 tabular-nums">2.</span>
                   <span className="flex items-center gap-1.5">
                     Baje y escoja
-                    <Plus className="h-4 w-4 text-blue-600" />
+                    <Plus className="size-4 text-blue-700" />
                     <strong>Añadir a pantalla de inicio</strong>
                   </span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="font-bold text-slate-400">3.</span>
+                  <span className="font-bold text-slate-500 tabular-nums">3.</span>
                   <span>
                     Confirme con <strong>Añadir</strong>
                   </span>
@@ -220,7 +220,7 @@ export const InstalarApp: React.FC = () => {
             ) : (
               <button
                 onClick={() => setInstrucciones(true)}
-                className="mt-3 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800"
+                className="btn btn-primary mt-4 w-full"
               >
                 Ver cómo
               </button>

@@ -399,8 +399,8 @@ export default function App() {
   // que la pantalla de login parpadee en cada arranque.
   if (cargandoPerfil) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="size-8 animate-spin rounded-full border-[3px] border-blue-700 border-t-transparent" role="status" aria-label="Cargando" />
       </div>
     );
   }
@@ -426,7 +426,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between font-sans">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col">
       
       {/* Top Application Header */}
       <Header
@@ -441,10 +441,10 @@ export default function App() {
       {/* Main Content Body */}
       {/* En escritorio el contenido se ensancha; en el celular se queda
           en una columna comoda para el pulgar. */}
-      <main className="flex-1 w-full max-w-md lg:max-w-6xl mx-auto">
+      <main className="flex-1 w-full max-w-6xl mx-auto">
 
         {/* Estado de sincronizacion con PostgreSQL */}
-        <div className="px-4 pt-3">
+        <div className="px-4 pt-3 lg:px-8 lg:pt-6">
           <SyncIndicator />
         </div>
 
@@ -486,7 +486,8 @@ export default function App() {
       </main>
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      {/* En Registrar la barra de guardado ocupa su lugar en el celular. */}
+      {activeTab !== 'registrar' && <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
 
       {/* Invitacion a instalarla en el telefono. Se muestra sola cuando
           el navegador lo permite y no esta instalada todavia. */}

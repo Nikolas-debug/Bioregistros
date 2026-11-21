@@ -25,7 +25,7 @@
  *   Lo demás          Se sirve del caché y se refresca por detrás.
  */
 
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `biomedica-${VERSION}`;
 
 // El mínimo para que la aplicación abra sin conexión. Los archivos de
@@ -34,9 +34,11 @@ const CACHE = `biomedica-${VERSION}`;
 const BASE = [
   '/',
   '/manifest.json',
+  '/favicon.svg',
   '/icon-192.png',
   '/icon-512.png',
   '/apple-touch-icon.png',
+  '/fonts/montserrat-latin.woff2',
 ];
 
 self.addEventListener('install', (event) => {

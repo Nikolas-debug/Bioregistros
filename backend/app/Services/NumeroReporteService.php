@@ -18,6 +18,33 @@ use Illuminate\Support\Facades\DB;
  */
 class NumeroReporteService
 {
+    /** Llave del candado de PostgreSQL que protege el consecutivo. */
+    private const CANDADO = 4851_0001;
+
+    /**
+     * Ejecuta $trabajo con el consecutivo bloqueado para los demas.
+     *
+     * Sin esto, dos celulares que sincronizan en el mismo segundo leen el
+     * mismo MAX(numero_reporte) y se reparten los mismos numeros; el segundo
+     * choca contra la restriccion unica y su lote entero falla. El candado
+     * es de sesion: si el proceso muere, PostgreSQL lo suelta al cerrar la
+     * conexion.
+     */
+    public function conCandado(callable $trabajo): mixed
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            return $trabajo();
+        }
+
+        DB::select('select pg_advisory_lock(?)', [self::CANDADO]);
+
+        try {
+            return $trabajo();
+        } finally {
+            DB::select('select pg_advisory_unlock(?)', [self::CANDADO]);
+        }
+    }
+
     /** El siguiente numero libre: se usa al registrar trabajo del dia. */
     public function siguiente(): int
     {

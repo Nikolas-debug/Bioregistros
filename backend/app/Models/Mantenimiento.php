@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Mantenimiento extends Model
 {
-    use HasFactory;
+    // Borrado suave: la fila borrada viaja en la bajada para que los demas
+    // dispositivos tambien la quiten (ver la migracion de deleted_at).
+    use HasFactory, SoftDeletes;
 
     protected $table = 'mantenimientos';
 

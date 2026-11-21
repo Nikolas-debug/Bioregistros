@@ -18,8 +18,8 @@ import {
   CornerDownLeft,
   Loader2,
   WifiOff,
-  X,
 } from 'lucide-react';
+import { Sheet } from './ui';
 import { api, ApiError } from '../api/client';
 import { ESTADOS_SUGERIDOS, SERVICIOS_SUGERIDOS } from '../types';
 
@@ -174,39 +174,50 @@ export const InsertarReporteModal: React.FC<Props> = ({
 
   /* ---------------- Interfaz ---------------- */
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl max-h-[92vh] flex flex-col shadow-2xl">
-
-        {/* Encabezado */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-              <CornerDownLeft className="w-5 h-5 text-amber-700" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-slate-900">Insertar reporte olvidado</h2>
-              <p className="text-xs text-slate-500">
-                Los reportes posteriores se corren en uno
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
-            aria-label="Cerrar"
-          >
-            <X className="w-5 h-5" />
+  const pie = (
+    <>
+      {paso === 'formulario' && siguiente !== null && (
+        <>
+          <button onClick={onClose} className="btn btn-ghost flex-1 sm:flex-none">Cancelar</button>
+          <button onClick={previsualizar} disabled={consultando} className="btn btn-primary flex-1">
+            {consultando && <Loader2 className="size-4 animate-spin" />}
+            Continuar
+            <ArrowRight className="size-4" />
           </button>
-        </div>
+        </>
+      )}
+      {paso === 'confirmar' && (
+        <>
+          <button onClick={() => setPaso('formulario')} className="btn btn-ghost flex-1 sm:flex-none">Volver</button>
+          <button
+            onClick={confirmar}
+            className={`btn flex-1 ${seMueven && seMueven > 0 ? 'bg-amber-400 text-slate-900 hover:bg-amber-500' : 'btn-primary'}`}
+          >
+            {seMueven && seMueven > 0 ? `Insertar y renumerar ${seMueven}` : 'Insertar'}
+          </button>
+        </>
+      )}
+      {(paso === 'listo' || (paso === 'formulario' && siguiente === null && !cargandoEstado)) && (
+        <button onClick={onClose} className="btn btn-primary flex-1">Cerrar</button>
+      )}
+    </>
+  );
 
-        {/* Cuerpo */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+  return (
+    <Sheet
+      titulo="Insertar reporte olvidado"
+      subtitulo="Los reportes posteriores se corren en uno"
+      icono={<CornerDownLeft className="size-5" />}
+      onClose={onClose}
+      ancho="lg"
+      pie={paso === 'guardando' ? undefined : pie}
+    >
+
 
           {error && (
-            <div className="mb-4 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-3">
-              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="notice notice-error mb-4" role="alert">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0" />
+              <p>{error}</p>
             </div>
           )}
 
@@ -215,12 +226,12 @@ export const InsertarReporteModal: React.FC<Props> = ({
             <>
               {cargandoEstado ? (
                 <div className="py-10 text-center">
-                  <Loader2 className="w-6 h-6 mx-auto animate-spin text-blue-600 mb-2" />
+                  <Loader2 className="mx-auto mb-2 size-6 animate-spin text-blue-700" />
                   <p className="text-sm text-slate-500">Consultando el consecutivo…</p>
                 </div>
               ) : siguiente === null ? (
                 <div className="py-10 text-center">
-                  <WifiOff className="w-10 h-10 mx-auto text-slate-400 mb-3" />
+                  <WifiOff className="mx-auto mb-3 size-10 text-slate-400" />
                   <p className="text-sm text-slate-600 max-w-sm mx-auto">
                     Esta operación necesita conexión: el número de reporte depende
                     de todos los registros del servidor, y el celular no puede
@@ -230,8 +241,8 @@ export const InsertarReporteModal: React.FC<Props> = ({
               ) : (
                 <>
                   {/* Número */}
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 mb-4">
-                    <label className="block text-[11px] font-bold uppercase tracking-wide text-slate-600 mb-1.5">
+                  <div className="soft mb-6 p-5">
+                    <label className="field-label">
                       Número de reporte
                     </label>
                     <input
@@ -242,17 +253,17 @@ export const InsertarReporteModal: React.FC<Props> = ({
                         setNumero(e.target.value);
                         setError(null);
                       }}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-lg font-bold tabular-nums focus:outline-hidden focus:ring-2 focus:ring-blue-600"
+                      className="input text-xl font-bold tabular-nums"
                     />
 
-                    <p className="mt-2 text-[11px] text-slate-500">
+                    <p className="field-hint">
                       El último asignado es el <strong>{siguiente - 1}</strong>. Un
                       registro nuevo normal tomaría el <strong>{siguiente}</strong>.
                     </p>
 
                     {huecos.length > 0 && (
                       <div className="mt-2.5">
-                        <p className="text-[11px] text-slate-600 mb-1.5">
+                        <p className="mb-2 text-[13px] font-bold text-slate-700">
                           Números libres dentro de la secuencia:
                         </p>
                         <div className="flex flex-wrap gap-1.5">
@@ -261,22 +272,19 @@ export const InsertarReporteModal: React.FC<Props> = ({
                               key={h}
                               type="button"
                               onClick={() => setNumero(String(h))}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold tabular-nums border transition ${
-                                numero === String(h)
-                                  ? 'bg-blue-600 text-white border-blue-600'
-                                  : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400'
-                              }`}
+                              aria-pressed={numero === String(h)}
+                              className="pill-tab min-h-10 px-3.5 tabular-nums"
                             >
                               {h}
                             </button>
                           ))}
                           {huecos.length > 14 && (
-                            <span className="px-1 py-1 text-[11px] text-slate-400">
+                            <span className="self-center px-1 text-[13px] text-slate-500">
                               +{huecos.length - 14} más
                             </span>
                           )}
                         </div>
-                        <p className="mt-1.5 text-[11px] text-slate-500">
+                        <p className="field-hint">
                           Usar un hueco no mueve ningún reporte.
                         </p>
                       </div>
@@ -284,7 +292,7 @@ export const InsertarReporteModal: React.FC<Props> = ({
                   </div>
 
                   {/* Datos */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Campo etiqueta="Fecha *">
                       <input
                         type="date"
@@ -332,10 +340,10 @@ export const InsertarReporteModal: React.FC<Props> = ({
                   </div>
 
                   {/* Clase */}
-                  <div className="mt-3">
-                    <label className="block text-[11px] font-bold uppercase tracking-wide text-slate-600 mb-1.5">
-                      Clase <span className="font-normal normal-case text-slate-400">(puede marcar varias)</span>
-                    </label>
+                  <div className="mt-5">
+                    <p className="field-label">
+                      Clase <span className="font-medium text-slate-500">· puede marcar varias</span>
+                    </p>
                     <div className="flex gap-2">
                       {([
                         ['Preventivo', preventivo, setPreventivo],
@@ -347,11 +355,7 @@ export const InsertarReporteModal: React.FC<Props> = ({
                           type="button"
                           aria-pressed={activa}
                           onClick={() => cambiar((v: boolean) => !v)}
-                          className={`px-3.5 py-2 rounded-full text-xs font-semibold transition ${
-                            activa
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
-                          }`}
+                          className="pill-tab px-5"
                         >
                           {etiqueta}
                         </button>
@@ -359,7 +363,7 @@ export const InsertarReporteModal: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-5 space-y-4">
                     <Campo etiqueta="Descripción">
                       <textarea
                         rows={2}
@@ -379,7 +383,7 @@ export const InsertarReporteModal: React.FC<Props> = ({
                       />
                     </Campo>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <Campo etiqueta="Estado">
                         <input
                           type="text"
@@ -405,22 +409,22 @@ export const InsertarReporteModal: React.FC<Props> = ({
           {/* --- Paso 2: confirmar --- */}
           {paso === 'confirmar' && (
             <div className="py-6">
-              <div className="rounded-2xl border border-slate-200 p-5 text-center">
-                <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+              <div className="soft p-6 text-center">
+                <p className="text-sm text-slate-500">
                   El reporte quedará como
                 </p>
-                <p className="text-4xl font-bold text-slate-900 tabular-nums">
+                <p className="mt-1 text-5xl font-medium tracking-[-0.02em] text-slate-900 tabular-nums">
                   #{numero}
                 </p>
-                <p className="mt-1 text-sm text-slate-600">{equipo}</p>
-                <p className="text-xs text-slate-500">{fecha}</p>
+                <p className="mt-2 text-[15px] font-bold text-slate-900">{equipo}</p>
+                <p className="text-[13px] text-slate-500">{fecha}</p>
               </div>
 
               {seMueven && seMueven > 0 ? (
-                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="notice notice-warn mt-4">
                   <div className="flex gap-3">
-                    <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-                    <div className="text-sm text-amber-900">
+                    <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700" />
+                    <div>
                       <p className="font-semibold">
                         Se van a renumerar {seMueven} reporte(s).
                       </p>
@@ -433,9 +437,9 @@ export const InsertarReporteModal: React.FC<Props> = ({
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
-                  <p className="text-sm text-emerald-900">
+                <div className="notice notice-ok mt-4">
+                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+                  <p>
                     Ese número está libre: no se mueve ningún reporte existente.
                   </p>
                 </div>
@@ -445,15 +449,15 @@ export const InsertarReporteModal: React.FC<Props> = ({
 
           {paso === 'guardando' && (
             <div className="py-16 text-center">
-              <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-3" />
+              <Loader2 className="mx-auto mb-3 size-8 animate-spin text-blue-700" />
               <p className="text-sm text-slate-600">Insertando y renumerando…</p>
             </div>
           )}
 
           {paso === 'listo' && resultado && (
             <div className="py-12 text-center">
-              <CheckCircle2 className="w-14 h-14 mx-auto text-green-600 mb-4" />
-              <p className="text-lg font-semibold text-slate-900">
+              <CheckCircle2 className="mx-auto mb-4 size-14 text-emerald-700" />
+              <p className="text-xl font-medium text-slate-900">
                 Guardado como reporte #{resultado.numero}
               </p>
               <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
@@ -463,82 +467,17 @@ export const InsertarReporteModal: React.FC<Props> = ({
               </p>
             </div>
           )}
-        </div>
-
-        {/* Pie */}
-        <div className="border-t border-slate-200 px-5 py-4 flex gap-3 shrink-0">
-          {paso === 'formulario' && siguiente !== null && (
-            <>
-              <button
-                onClick={onClose}
-                className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={previsualizar}
-                disabled={consultando}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-blue-700 py-3 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
-              >
-                {consultando ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                Continuar
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </>
-          )}
-
-          {paso === 'confirmar' && (
-            <>
-              <button
-                onClick={() => setPaso('formulario')}
-                className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Volver
-              </button>
-              <button
-                onClick={confirmar}
-                className={`flex-1 rounded-xl py-3 text-sm font-semibold text-white ${
-                  seMueven && seMueven > 0
-                    ? 'bg-amber-600 hover:bg-amber-700'
-                    : 'bg-blue-700 hover:bg-blue-800'
-                }`}
-              >
-                {seMueven && seMueven > 0
-                  ? `Insertar y renumerar ${seMueven}`
-                  : 'Insertar'}
-              </button>
-            </>
-          )}
-
-          {(paso === 'listo' || (paso === 'formulario' && siguiente === null)) && (
-            <button
-              onClick={onClose}
-              className="flex-1 rounded-xl bg-blue-700 py-3 text-sm font-semibold text-white hover:bg-blue-800"
-            >
-              Cerrar
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 };
 
 /* ------------------------------------------------------------------ */
 
-const estilo =
-  'w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 ' +
-  'placeholder:text-slate-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-600 ' +
-  'focus:border-transparent';
+const estilo = 'input';
 
-const Campo: React.FC<{ etiqueta: string; children: React.ReactNode }> = ({
-  etiqueta,
-  children,
-}) => (
-  <div>
-    <label className="block text-[11px] font-bold uppercase tracking-wide text-slate-600 mb-1.5">
-      {etiqueta}
-    </label>
+const Campo: React.FC<{ etiqueta: string; children: React.ReactNode }> = ({ etiqueta, children }) => (
+  <label className="block">
+    <span className="field-label">{etiqueta}</span>
     {children}
-  </div>
+  </label>
 );

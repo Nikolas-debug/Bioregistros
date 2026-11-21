@@ -17,8 +17,8 @@ import {
   FileSpreadsheet,
   Loader2,
   Upload,
-  X,
 } from 'lucide-react';
+import { Sheet } from './ui';
 import { dbManager } from '../db/indexedDB';
 import { syncManager } from '../sync/syncManager';
 import { descargarPlantilla, leerExcel, ResultadoLectura } from '../utils/excelImport';
@@ -121,37 +121,49 @@ export const BulkImportModal: React.FC<Props> = ({
 
   /* -------------------- Interfaz -------------------- */
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-3xl sm:rounded-2xl rounded-t-2xl max-h-[92vh] flex flex-col shadow-2xl">
-
-        {/* Encabezado */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <FileSpreadsheet className="w-5 h-5 text-blue-700" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-slate-900">Registro masivo</h2>
-              <p className="text-xs text-slate-500">Cargar mantenimientos desde Excel</p>
-            </div>
-          </div>
+  const pie = (
+    <>
+      {paso === 'revisar' && (
+        <>
           <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
-            aria-label="Cerrar"
+            onClick={() => { setPaso('elegir'); setLectura(null); setArchivo(null); }}
+            className="btn btn-ghost flex-1 sm:flex-none"
           >
-            <X className="w-5 h-5" />
+            Cambiar archivo
           </button>
-        </div>
+          <button
+            onClick={confirmar}
+            disabled={lectura!.validas === 0 && omitirErroneas}
+            className="btn btn-primary flex-1"
+          >
+            Importar <span className="tabular-nums">{omitirErroneas ? lectura!.validas : lectura!.totalFilas}</span> registro(s)
+          </button>
+        </>
+      )}
+      {paso === 'listo' && (
+        <button onClick={onClose} className="btn btn-primary flex-1">Terminar</button>
+      )}
+      {(paso === 'elegir' || paso === 'leyendo') && (
+        <button onClick={onClose} className="btn btn-ghost flex-1">Cancelar</button>
+      )}
+    </>
+  );
 
-        {/* Cuerpo */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+  return (
+    <Sheet
+      titulo="Registro masivo"
+      subtitulo="Cargar mantenimientos desde Excel"
+      icono={<FileSpreadsheet className="size-5" />}
+      onClose={onClose}
+      ancho="xl"
+      pie={paso === 'guardando' ? undefined : pie}
+    >
+
 
           {error && (
-            <div className="mb-4 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-3">
-              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="notice notice-error mb-4" role="alert">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0" />
+              <p>{error}</p>
             </div>
           )}
 
@@ -163,17 +175,20 @@ export const BulkImportModal: React.FC<Props> = ({
                 onDragLeave={() => setArrastrando(false)}
                 onDrop={alSoltar}
                 onClick={() => inputRef.current?.click()}
-                className={`cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition ${
-                  arrastrando
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50'
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && inputRef.current?.click()}
+                className={`cursor-pointer rounded-3xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+                  arrastrando ? 'border-blue-600 bg-blue-50' : 'border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100'
                 }`}
               >
-                <Upload className="w-10 h-10 mx-auto text-slate-400 mb-3" />
-                <p className="font-medium text-slate-800">
+                <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-slate-900 text-white">
+                  <Upload className="size-5" />
+                </span>
+                <p className="text-[15px] font-bold text-slate-900">
                   Arrastre el archivo aquí o toque para buscarlo
                 </p>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="mt-1 text-[13px] text-slate-500">
                   Formatos aceptados: .xlsx, .xls y .csv
                 </p>
               </div>
@@ -192,14 +207,14 @@ export const BulkImportModal: React.FC<Props> = ({
 
               <button
                 onClick={descargarPlantilla}
-                className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-slate-300 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="btn btn-ghost mt-4 w-full whitespace-normal"
               >
-                <Download className="w-4 h-4" />
+                <Download className="size-4 shrink-0" />
                 Descargar plantilla con el formato correcto
               </button>
 
-              <div className="mt-5 rounded-xl bg-slate-50 p-4 text-xs text-slate-600 leading-relaxed">
-                <p className="font-semibold text-slate-800 mb-1">Cómo debe venir el archivo</p>
+              <div className="mt-6 text-[13px] leading-relaxed text-slate-600">
+                <p className="mb-1 text-sm font-bold text-slate-900">Cómo debe venir el archivo</p>
                 <p>
                   Sirve el seguimiento tal como lo llevan: FECHA, REPORTE, EQUIPO,
                   MARCA, MODELO, SERIE, SERVICIO, UBICACIÓN, INVENTARIO, PREVENTIVO,
@@ -218,7 +233,7 @@ export const BulkImportModal: React.FC<Props> = ({
           {/* --- Leyendo --- */}
           {paso === 'leyendo' && (
             <div className="py-16 text-center">
-              <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-3" />
+              <Loader2 className="mx-auto mb-3 size-8 animate-spin text-blue-700" />
               <p className="text-sm text-slate-600">Leyendo {archivo?.name}…</p>
             </div>
           )}
@@ -226,13 +241,13 @@ export const BulkImportModal: React.FC<Props> = ({
           {/* --- Paso 2: revisar --- */}
           {paso === 'revisar' && lectura && (
             <>
-              <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="mb-4 grid grid-cols-3 gap-2.5">
                 <Tarjeta valor={lectura.totalFilas} etiqueta="Filas leídas" tono="slate" />
                 <Tarjeta valor={lectura.validas} etiqueta="Listas" tono="green" />
                 <Tarjeta valor={lectura.conError} etiqueta="Con error" tono="red" />
               </div>
 
-              <p className="text-xs text-slate-500 mb-3">
+              <p className="mb-3 text-[13px] text-slate-500">
                 Hoja <strong>{lectura.hojaLeida}</strong> · encabezado en la fila{' '}
                 <strong>{lectura.filaEncabezado}</strong> ·{' '}
                 {lectura.columnasDetectadas.length} columnas reconocidas
@@ -245,7 +260,7 @@ export const BulkImportModal: React.FC<Props> = ({
                   porque es lo que conviene revisar de un vistazo antes de
                   darle importar. */}
               {(lectura.columnasPorPosicion.length > 0 || lectura.fechasHeredadas > 0) && (
-                <div className="mb-3 space-y-1 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+                <div className="notice notice-info mb-3 flex-col gap-1 text-[13px]">
                   {lectura.columnasPorPosicion.length > 0 && (
                     <p>
                       Columnas sin título reconocidas por su posición:{' '}
@@ -265,7 +280,7 @@ export const BulkImportModal: React.FC<Props> = ({
               )}
 
               {lectura.reporteMin && lectura.reporteMax && (
-                <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                <div className="mb-3 rounded-2xl bg-slate-100 p-4 text-[13px] text-slate-700">
                   Reportes del archivo:{' '}
                   <strong>{lectura.reporteMin} – {lectura.reporteMax}</strong>
                   {lectura.reportesFaltantes.length > 0 && (
@@ -283,8 +298,8 @@ export const BulkImportModal: React.FC<Props> = ({
               )}
 
               {lectura.duplicadas > 0 && (
-                <div className="mb-3 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="notice notice-warn mb-3 text-[13px]">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                   <span>
                     {lectura.duplicadas} fila(s) traen un número de reporte que ya
                     existe. Las repetidas dentro del archivo se rechazan; las que ya
@@ -294,28 +309,28 @@ export const BulkImportModal: React.FC<Props> = ({
               )}
 
               {/* Tabla de vista previa */}
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto max-h-72">
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-100 sticky top-0">
-                      <tr className="text-left text-slate-600">
-                        <th className="px-3 py-2 font-medium">Fila</th>
-                        <th className="px-3 py-2 font-medium">Reporte</th>
-                        <th className="px-3 py-2 font-medium">Equipo</th>
-                        <th className="px-3 py-2 font-medium">Fecha</th>
-                        <th className="px-3 py-2 font-medium">Clase</th>
-                        <th className="px-3 py-2 font-medium">Estado</th>
-                        <th className="px-3 py-2 font-medium">Observación</th>
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="max-h-72 overflow-x-auto">
+                  <table className="w-full text-[13px]">
+                    <thead className="sticky top-0 bg-slate-100">
+                      <tr className="text-left text-xs text-slate-600">
+                        <th className="px-3 py-2.5 font-bold whitespace-nowrap">Fila</th>
+                        <th className="px-3 py-2.5 font-bold whitespace-nowrap">Reporte</th>
+                        <th className="px-3 py-2.5 font-bold whitespace-nowrap">Equipo</th>
+                        <th className="px-3 py-2.5 font-bold whitespace-nowrap">Fecha</th>
+                        <th className="px-3 py-2.5 font-bold whitespace-nowrap">Clase</th>
+                        <th className="px-3 py-2.5 font-bold whitespace-nowrap">Estado</th>
+                        <th className="px-3 py-2.5 font-bold whitespace-nowrap">Observación</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {lectura.filas.slice(0, 200).map((f) => (
                         <tr
                           key={f.fila}
-                          className={f.errores.length ? 'bg-red-50/60' : undefined}
+                          className={f.errores.length ? 'bg-rose-50' : undefined}
                         >
-                          <td className="px-3 py-2 text-slate-400">{f.fila}</td>
-                          <td className="px-3 py-2 font-mono text-slate-700">
+                          <td className="px-3 py-2 text-slate-500 tabular-nums">{f.fila}</td>
+                          <td className="px-3 py-2 font-bold text-slate-700 tabular-nums">
                             {f.registro.numeroReporte ?? '—'}
                           </td>
                           <td className="px-3 py-2 font-medium text-slate-800">
@@ -332,13 +347,13 @@ export const BulkImportModal: React.FC<Props> = ({
                           </td>
                           <td className="px-3 py-2">
                             {f.errores.length > 0 ? (
-                              <span className="text-red-700">{f.errores.join(' · ')}</span>
+                              <span className="text-rose-700">{f.errores.join(' · ')}</span>
                             ) : f.advertencias.length > 0 ? (
                               <span className="text-amber-700">
                                 {f.advertencias.join(' · ')}
                               </span>
                             ) : (
-                              <span className="text-green-700">Correcta</span>
+                              <span className="font-bold text-emerald-700">Correcta</span>
                             )}
                           </td>
                         </tr>
@@ -347,7 +362,7 @@ export const BulkImportModal: React.FC<Props> = ({
                   </table>
                 </div>
                 {lectura.filas.length > 200 && (
-                  <p className="px-3 py-2 text-xs text-slate-500 bg-slate-50 border-t border-slate-200">
+                  <p className="border-t border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
                     Se muestran las primeras 200 filas de {lectura.filas.length}.
                     Al confirmar se procesan todas.
                   </p>
@@ -355,12 +370,12 @@ export const BulkImportModal: React.FC<Props> = ({
               </div>
 
               {lectura.conError > 0 && (
-                <label className="mt-4 flex items-start gap-3 rounded-xl border border-slate-200 p-3 cursor-pointer">
+                <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 p-4">
                   <input
                     type="checkbox"
                     checked={omitirErroneas}
                     onChange={(e) => setOmitirErroneas(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 accent-blue-600"
+                    className="mt-0.5 size-5 shrink-0 accent-slate-900"
                   />
                   <span className="text-sm text-slate-700">
                     Omitir las {lectura.conError} filas con error e importar solo las
@@ -378,7 +393,7 @@ export const BulkImportModal: React.FC<Props> = ({
           {/* --- Guardando --- */}
           {paso === 'guardando' && (
             <div className="py-16 text-center">
-              <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-3" />
+              <Loader2 className="mx-auto mb-3 size-8 animate-spin text-blue-700" />
               <p className="text-sm text-slate-600">Guardando en el dispositivo…</p>
             </div>
           )}
@@ -386,8 +401,8 @@ export const BulkImportModal: React.FC<Props> = ({
           {/* --- Listo --- */}
           {paso === 'listo' && resumenFinal && (
             <div className="py-10 text-center">
-              <CheckCircle2 className="w-14 h-14 mx-auto text-green-600 mb-4" />
-              <p className="text-lg font-semibold text-slate-900">
+              <CheckCircle2 className="mx-auto mb-4 size-14 text-emerald-700" />
+              <p className="text-xl font-medium text-slate-900">
                 {resumenFinal.guardados} registro(s) importados
               </p>
               {resumenFinal.omitidos > 0 && (
@@ -402,48 +417,7 @@ export const BulkImportModal: React.FC<Props> = ({
               </p>
             </div>
           )}
-        </div>
-
-        {/* Pie */}
-        <div className="border-t border-slate-200 px-5 py-4 flex gap-3 shrink-0">
-          {paso === 'revisar' && (
-            <>
-              <button
-                onClick={() => { setPaso('elegir'); setLectura(null); setArchivo(null); }}
-                className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Cambiar archivo
-              </button>
-              <button
-                onClick={confirmar}
-                disabled={lectura!.validas === 0 && omitirErroneas}
-                className="flex-1 rounded-xl bg-blue-700 py-3 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-40"
-              >
-                Importar {omitirErroneas ? lectura!.validas : lectura!.totalFilas} registro(s)
-              </button>
-            </>
-          )}
-
-          {paso === 'listo' && (
-            <button
-              onClick={onClose}
-              className="flex-1 rounded-xl bg-blue-700 py-3 text-sm font-semibold text-white hover:bg-blue-800"
-            >
-              Terminar
-            </button>
-          )}
-
-          {(paso === 'elegir' || paso === 'leyendo') && (
-            <button
-              onClick={onClose}
-              className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Cancelar
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 };
 
@@ -455,15 +429,14 @@ const Tarjeta: React.FC<{ valor: number; etiqueta: string; tono: 'slate' | 'gree
   tono,
 }) => {
   const tonos = {
-    slate: 'bg-slate-50 text-slate-900 border-slate-200',
-    green: 'bg-green-50 text-green-800 border-green-200',
-    red: 'bg-red-50 text-red-800 border-red-200',
+    slate: 'bg-slate-100 text-slate-900',
+    green: 'bg-emerald-50 text-emerald-900',
+    red: 'bg-rose-50 text-rose-900',
   };
-
   return (
-    <div className={`rounded-xl border p-3 text-center ${tonos[tono]}`}>
-      <p className="text-2xl font-bold tabular-nums">{valor}</p>
-      <p className="text-[11px] uppercase tracking-wide opacity-70">{etiqueta}</p>
+    <div className={`rounded-2xl p-3 text-center ${tonos[tono]}`}>
+      <p className="text-2xl font-medium tabular-nums">{valor}</p>
+      <p className="text-xs font-bold opacity-80">{etiqueta}</p>
     </div>
   );
 };

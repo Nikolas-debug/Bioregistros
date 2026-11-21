@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, Loader2, WifiOff, ShieldAlert } from 'lucide-react';
+import { Eye, EyeOff, Loader2, WifiOff, Info } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { UserProfile } from '../types';
 
@@ -67,90 +67,84 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-blue-100 via-sky-50 to-white flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-slate-100 p-7 sm:p-8">
+    <div className="flex min-h-dvh flex-col bg-white px-5 pt-[max(2.5rem,env(safe-area-inset-top))] pb-28 sm:items-center sm:justify-center sm:p-6">
+      <div className="w-full sm:max-w-[420px] sm:rounded-feature sm:border sm:border-slate-200 sm:p-10">
 
         {/* Marca */}
-        <div className="flex flex-col items-center mb-7">
-          <img src="/icon-192.png" alt="" className="w-16 h-16 rounded-2xl shadow-sm" />
-          <h1 className="mt-3 text-xl font-bold text-slate-900 tracking-tight">
-            Gestión Biomédica
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">Seguimiento de mantenimientos</p>
+        <img src="/icon-192.png" alt="" className="size-14 rounded-2xl" />
+        <h1 className="t-display mt-6">Gestión Biomédica</h1>
+        <p className="t-lead mt-1">Seguimiento de mantenimientos</p>
+
+        <div className="mt-8 space-y-3">
+          {hayServidor === false && (
+            <div className="notice bg-slate-100 text-slate-700">
+              <WifiOff className="mt-0.5 size-4 shrink-0" />
+              <p className="text-[13px]">
+                No se alcanza el servidor. Si ya había entrado en este dispositivo, cierre y vuelva
+                a abrir la aplicación: la sesión guardada sigue sirviendo sin conexión.
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <div role="alert" className="notice notice-error">
+              {error}
+            </div>
+          )}
         </div>
 
-        {hayServidor === false && (
-          <div className="mb-4 flex gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <WifiOff className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
-            <p className="text-[11px] leading-relaxed text-slate-600">
-              No se alcanza el servidor. Si ya había entrado en este dispositivo,
-              cierre y vuelva a abrir la aplicación: la sesión guardada sigue
-              sirviendo sin conexión.
-            </p>
-          </div>
-        )}
-
-        {error && (
-          <div
-            role="alert"
-            className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800"
-          >
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={enviar} className="space-y-3.5">
-          <div className="relative">
-            <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        <form onSubmit={enviar} className="mt-2 space-y-4">
+          <div>
+            <label htmlFor="login-usuario" className="field-label">Usuario o correo</label>
             <input
+              id="login-usuario"
               type="text"
               inputMode="email"
               autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
                 setError(null);
               }}
-              placeholder="Usuario o correo"
               disabled={cargando}
-              className={estiloInput + ' pl-11'}
+              className="input"
               required
             />
           </div>
 
-          <div className="relative">
-            <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type={verClave ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setError(null);
-              }}
-              placeholder="Contraseña"
-              disabled={cargando}
-              className={estiloInput + ' pl-11 pr-11'}
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setVerClave((v) => !v)}
-              aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
-            >
-              {verClave ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
+          <div>
+            <label htmlFor="login-clave" className="field-label">Contraseña</label>
+            <div className="relative">
+              <input
+                id="login-clave"
+                type={verClave ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError(null);
+                }}
+                disabled={cargando}
+                className="input pr-12"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setVerClave((v) => !v)}
+                aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                className="btn-icon absolute top-1/2 right-0.5 -translate-y-1/2 text-slate-500"
+              >
+                {verClave ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+              </button>
+            </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={cargando}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-700 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 active:scale-[0.99] disabled:opacity-60"
-          >
+          <button type="submit" disabled={cargando} className="btn btn-lg btn-primary mt-2 w-full">
             {cargando ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="size-5 animate-spin" />
                 Verificando…
               </>
             ) : (
@@ -159,20 +153,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           </button>
         </form>
 
-        <div className="mt-6 flex gap-2.5 rounded-xl bg-amber-50 border border-amber-200 p-3">
-          <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-          <p className="text-[11px] leading-relaxed text-amber-900">
-            Versión de prueba con una sola cuenta. Si olvida la contraseña, el
-            administrador la restablece desde el servidor.
-          </p>
-        </div>
+        <p className="mt-8 flex gap-2.5 text-[13px] leading-relaxed text-slate-500">
+          <Info className="mt-0.5 size-4 shrink-0" />
+          Versión de prueba con una sola cuenta. Si olvida la contraseña, el administrador la
+          restablece desde el servidor.
+        </p>
       </div>
     </div>
   );
 };
-
-const estiloInput =
-  'w-full py-3 pr-4 bg-slate-50/60 border border-slate-200 rounded-xl text-slate-800 ' +
-  'placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 ' +
-  'focus:ring-blue-600 focus:border-transparent transition-all text-sm font-medium ' +
-  'disabled:opacity-60';

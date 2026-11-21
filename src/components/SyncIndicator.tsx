@@ -40,49 +40,27 @@ export const SyncIndicator: React.FC<{ compacto?: boolean }> = ({ compacto }) =>
   /* --- Apariencia según el estado --- */
   const config = (() => {
     if (enMovimiento) {
-      return {
-        Icono: RefreshCw,
-        clase: 'bg-blue-50 text-blue-700 border-blue-200',
-        texto: 'Sincronizando…',
-        girar: true,
-      };
+      return { Icono: RefreshCw, fondo: 'bg-blue-50', icono: 'bg-blue-700 text-white', texto: 'Sincronizando…', girar: true };
     }
     if (s.estado === 'sin-conexion') {
       return {
         Icono: CloudOff,
-        clase: 'bg-slate-100 text-slate-600 border-slate-200',
-        texto:
-          s.pendientes > 0
-            ? `Sin conexión · ${s.pendientes} por subir`
-            : 'Sin conexión',
+        fondo: 'bg-slate-100',
+        icono: 'bg-slate-500 text-white',
+        texto: s.pendientes > 0 ? `Sin conexión · ${s.pendientes} por subir` : 'Sin conexión',
         girar: false,
       };
     }
     if (s.estado === 'error' || s.rechazados > 0) {
-      return {
-        Icono: AlertCircle,
-        clase: 'bg-amber-50 text-amber-800 border-amber-200',
-        texto: `${s.pendientes} registro(s) con problema`,
-        girar: false,
-      };
+      return { Icono: AlertCircle, fondo: 'bg-amber-50', icono: 'bg-amber-400 text-slate-900', texto: `${s.pendientes} registro(s) con problema`, girar: false };
     }
     if (s.pendientes > 0) {
-      return {
-        Icono: CloudUpload,
-        clase: 'bg-amber-50 text-amber-800 border-amber-200',
-        texto: `${s.pendientes} por subir`,
-        girar: false,
-      };
+      return { Icono: CloudUpload, fondo: 'bg-amber-50', icono: 'bg-amber-400 text-slate-900', texto: `${s.pendientes} por subir`, girar: false };
     }
-    return {
-      Icono: Cloud,
-      clase: 'bg-green-50 text-green-700 border-green-200',
-      texto: 'Todo sincronizado',
-      girar: false,
-    };
+    return { Icono: Cloud, fondo: 'bg-slate-100', icono: 'bg-emerald-700 text-white', texto: 'Todo sincronizado', girar: false };
   })();
 
-  const { Icono, clase, texto, girar } = config;
+  const { Icono, fondo, icono, texto, girar } = config;
 
   if (compacto) {
     return (
@@ -90,23 +68,25 @@ export const SyncIndicator: React.FC<{ compacto?: boolean }> = ({ compacto }) =>
         onClick={forzar}
         disabled={enMovimiento}
         title={texto}
-        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${clase}`}
+        className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${fondo}`}
       >
-        <Icono className={`w-3.5 h-3.5 ${girar ? 'animate-spin' : ''}`} />
+        <Icono className={`size-4 ${girar ? 'animate-spin' : ''}`} />
         {s.pendientes > 0 && <span className="tabular-nums">{s.pendientes}</span>}
       </button>
     );
   }
 
   return (
-    <div className={`rounded-xl border p-3 ${clase}`}>
+    <div className={`rounded-3xl p-2 pl-3 ${fondo}`} role="status" aria-live="polite">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <Icono className={`w-5 h-5 shrink-0 ${girar ? 'animate-spin' : ''}`} />
+        <div className="flex min-w-0 items-center gap-3">
+          <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${icono}`}>
+            <Icono className={`size-[18px] ${girar ? 'animate-spin' : ''}`} />
+          </span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold truncate">{texto}</p>
+            <p className="truncate text-sm font-bold text-slate-900">{texto}</p>
             {s.ultimaSincronizacion && (
-              <p className="text-[11px] opacity-70">
+              <p className="truncate text-xs text-slate-600">
                 Última subida:{' '}
                 {new Date(s.ultimaSincronizacion).toLocaleString('es-CO', {
                   day: '2-digit',
@@ -119,26 +99,21 @@ export const SyncIndicator: React.FC<{ compacto?: boolean }> = ({ compacto }) =>
           </div>
         </div>
 
-        <button
-          onClick={forzar}
-          disabled={enMovimiento || s.pendientes === 0}
-          className="shrink-0 rounded-lg bg-white/70 px-3 py-1.5 text-xs font-semibold hover:bg-white disabled:opacity-40"
-        >
-          Sincronizar
-        </button>
+        {s.pendientes > 0 && (
+          <button onClick={forzar} disabled={enMovimiento} className="btn btn-sm btn-ink">
+            Sincronizar
+          </button>
+        )}
       </div>
 
       {s.rechazados > 0 && !enMovimiento && (
-        <button
-          onClick={descartar}
-          className="mt-2 w-full rounded-lg bg-white/70 px-3 py-1.5 text-xs font-semibold hover:bg-white"
-        >
+        <button onClick={descartar} className="btn btn-sm btn-ghost mt-2 w-full bg-white">
           Descartar {s.rechazados} rechazado(s)
         </button>
       )}
 
       {s.ultimoResultado?.errores && s.ultimoResultado.errores.length > 0 && (
-        <ul className="mt-2 space-y-1 border-t border-current/10 pt-2 text-[11px] opacity-90">
+        <ul className="mt-2 space-y-1 border-t border-slate-900/10 px-1 pt-2 pb-1 text-xs text-slate-700">
           {s.ultimoResultado.errores.slice(0, 3).map((e) => (
             <li key={e.id}>
               <span className="font-mono">{e.id}</span>: {e.detalle}

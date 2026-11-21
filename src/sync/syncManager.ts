@@ -57,7 +57,10 @@ const TAMANO_BAJADA = 1000;
 const MAX_LOTES_BAJADA = 20;
 
 /** Dónde queda anotada la hora de la última bajada. */
-const CLAVE_MARCADOR = 'ultimaBajada';
+// v2: la marca vieja se comparaba mal en el servidor (UTC contra hora de
+// Bogotá) y cada equipo se saltó registros. Con la llave nueva todos hacen
+// una bajada completa una vez y quedan iguales.
+const CLAVE_MARCADOR = 'ultimaBajada.v2';
 
 export type EstadoSync = 'inactivo' | 'sincronizando' | 'sin-conexion' | 'error';
 
@@ -328,7 +331,10 @@ class SyncManager {
         //     PostgreSQL la tiene, y de paso se guarda el numero de reporte
         //     que asigno el servidor.
         const confirmados = respuesta.aceptados.filter((a) => a.uuid);
-        await dbManager.confirmarSincronizados(confirmados, borrarDelHistorial);
+        // La versión que se mandó: si el técnico editó el registro mientras
+        // el lote viajaba, la cola ya tiene otra y esa no se puede soltar.
+        const enviados = new Map(lote.map((item) => [item.id, item.payload.updatedAt]));
+        await dbManager.confirmarSincronizados(confirmados, borrarDelHistorial, enviados);
         guardados += confirmados.length;
 
         // --- Rechazados: se quedan, con el motivo anotado.
@@ -336,9 +342,15 @@ class SyncManager {
           const fallos = respuesta.rechazados.map((r) => ({
             id: r.uuid,
             error: Object.values(r.errores || {}).flat().join(' · ') || r.motivo,
+            // Solo un rechazo por contenido es definitivo. Un error del
+            // servidor (dos equipos pidiendo el mismo número a la vez, la
+            // base ocupada) se reintenta solo; marcarlo como rechazado lo
+            // dejaba listo para que alguien lo descartara y se perdiera.
+            definitivo: r.motivo === 'validacion',
           }));
 
-          await dbManager.marcarFallidos(fallos, true);
+          await dbManager.marcarFallidos(fallos.filter((f) => f.definitivo), true);
+          await dbManager.marcarFallidos(fallos.filter((f) => !f.definitivo), false);
           fallidos += fallos.length;
           erroresVisibles.push(
             ...fallos.map((f) => ({ id: f.id, detalle: f.error })),
@@ -413,9 +425,11 @@ class SyncManager {
       let desde = await dbManager.leerPreferencia<string | null>(CLAVE_MARCADOR, null);
       let total = 0;
       let marcador: string | null = null;
+      let despuesDeId: number | undefined;
+      let completo = false;
 
       for (let lote = 0; lote < MAX_LOTES_BAJADA; lote++) {
-        const respuesta = await api.descargar(desde ?? undefined, TAMANO_BAJADA);
+        const respuesta = await api.descargar(desde ?? undefined, TAMANO_BAJADA, despuesDeId);
         const registros = respuesta?.registros ?? [];
 
         if (registros.length > 0) {
@@ -425,11 +439,20 @@ class SyncManager {
 
         marcador = respuesta?.servidor_hora ?? marcador;
 
-        if (!respuesta?.hay_mas || !respuesta?.siguiente_desde) break;
+        if (!respuesta?.hay_mas || !respuesta?.siguiente_desde) {
+          completo = true;
+          break;
+        }
         desde = respuesta.siguiente_desde;
+        despuesDeId = respuesta.siguiente_id ?? undefined;
       }
 
-      if (marcador) {
+      if (!completo && desde) {
+        // Se acabaron los lotes de esta corrida con registros pendientes:
+        // la próxima sigue desde aquí, no desde la hora del servidor (eso
+        // saltaba lo que faltaba).
+        await dbManager.guardarPreferencia(CLAVE_MARCADOR, desde);
+      } else if (marcador) {
         // Dos minutos de holgura contra escrituras en el borde del corte.
         const conHolgura = new Date(
           new Date(marcador).getTime() - 2 * 60_000,

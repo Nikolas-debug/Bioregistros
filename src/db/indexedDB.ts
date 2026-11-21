@@ -309,6 +309,15 @@ class IndexedDBManager {
       registros.forEach((r) => {
         if (!r?.id) return;
 
+        // Lo borraron en otro dispositivo: se quita también aquí, incluso
+        // si tenía una edición pendiente (el servidor ya no la aceptaría).
+        if (r.eliminado) {
+          almacenRegistros.delete(r.id);
+          cola.delete(r.id);
+          guardados++;
+          return;
+        }
+
         const enCola = cola.get(r.id);
 
         enCola.onsuccess = () => {
@@ -415,6 +424,8 @@ class IndexedDBManager {
       numero_reporte?: number | null;
     }[],
     borrarDelHistorial = false,
+    /** uuid → updatedAt de la versión enviada. Sin él se suelta siempre. */
+    enviados?: Map<string, number>,
   ): Promise<void> {
     if (confirmaciones.length === 0) return;
     const db = await this.openDB();
@@ -425,26 +436,35 @@ class IndexedDBManager {
       const registros = tx.objectStore(STORES.RECORDS);
 
       confirmaciones.forEach(({ uuid, id, numero_reporte }) => {
-        cola.delete(uuid);
+        const enCola = cola.get(uuid);
+        enCola.onsuccess = () => {
+          const item = enCola.result as ElementoCola | undefined;
+          // Editado mientras el lote viajaba: la versión nueva se queda en la
+          // cola y sube en la próxima corrida. Solo se anota el id y el número.
+          const cambioEnElCamino =
+            !!item && !!enviados && enviados.has(uuid) && item.payload.updatedAt !== enviados.get(uuid);
 
-        if (borrarDelHistorial) {
-          registros.delete(uuid);
-          return;
-        }
+          if (!cambioEnElCamino) cola.delete(uuid);
 
-        const lectura = registros.get(uuid);
-        lectura.onsuccess = () => {
-          const registro = lectura.result as MaintenanceRecord | undefined;
-          if (registro) {
-            registros.put({
-              ...registro,
-              idServidor: id ?? registro.idServidor,
-              numeroReporte: numero_reporte ?? registro.numeroReporte,
-              syncState: 'synced',
-              syncedAt: Date.now(),
-              syncError: undefined,
-            });
+          if (borrarDelHistorial && !cambioEnElCamino) {
+            registros.delete(uuid);
+            return;
           }
+
+          const lectura = registros.get(uuid);
+          lectura.onsuccess = () => {
+            const registro = lectura.result as MaintenanceRecord | undefined;
+            if (registro) {
+              registros.put({
+                ...registro,
+                idServidor: id ?? registro.idServidor,
+                numeroReporte: numero_reporte ?? registro.numeroReporte,
+                ...(cambioEnElCamino
+                  ? {}
+                  : { syncState: 'synced' as const, syncedAt: Date.now(), syncError: undefined }),
+              });
+            }
+          };
         };
       });
 
@@ -527,8 +547,10 @@ class IndexedDBManager {
 
       lectura.onsuccess = () => {
         (lectura.result as ElementoCola[]).forEach((item) => {
-          if ((item.intentos || 0) > 0) {
-            cola.put({ ...item, intentos: 0, ultimoIntento: 0 });
+          // También los rechazados: el botón manual es la forma de volver a
+          // intentarlos después de corregir algo en el servidor.
+          if ((item.intentos || 0) > 0 || item.rechazado) {
+            cola.put({ ...item, intentos: 0, ultimoIntento: 0, rechazado: false });
           }
         });
       };

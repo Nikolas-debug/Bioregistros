@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -15,7 +16,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 class SpaController extends Controller
 {
-    public function __invoke(): BinaryFileResponse|Response
+    public function __invoke(): BinaryFileResponse|JsonResponse|Response
     {
         $indice = public_path('index.html');
 

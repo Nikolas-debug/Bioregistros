@@ -1,35 +1,18 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { 
-  Search, 
-  Upload, 
-  Download, 
-  Edit3, 
-  FileSpreadsheet, 
-  Calendar, 
-  Filter, 
-  CheckCircle, 
-  AlertTriangle, 
-  XCircle, 
-  Sparkles,
+import {
+  Search,
+  Upload,
+  Download,
+  FileSpreadsheet,
   ChevronLeft,
   ChevronRight,
-  Printer,
-  Trash2,
-  Eye,
   Plus,
-  CornerDownLeft
+  CornerDownLeft,
+  CalendarRange,
 } from 'lucide-react';
-import {
-  MaintenanceRecord,
-  Equipment,
-  grupoEstado,
-  etiquetaReporte,
-} from '../types';
-import { 
-  exportMaintenanceRecordsToExcel, 
-  exportSingleRecordToExcel, 
-  exportAnnualReportToExcel 
-} from '../utils/excelExport';
+import { EstadoBadge } from './ui';
+import { MaintenanceRecord, grupoEstado, etiquetaReporte, fechaCorta } from '../types';
+import { exportMaintenanceRecordsToExcel } from '../utils/excelExport';
 
 interface DocumentsTabProps {
   records: MaintenanceRecord[];
@@ -132,63 +115,73 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
     }
   };
 
+  const herramientas = [
+    onOpenInsertarReporte && {
+      id: 'insertar',
+      Icono: CornerDownLeft,
+      tono: 'bg-slate-900 text-white',
+      titulo: 'Insertar un reporte olvidado',
+      detalle: 'Se ubica en el número que usted indique y corre los siguientes',
+      accion: onOpenInsertarReporte,
+    },
+    onOpenBulkImport && {
+      id: 'masivo',
+      Icono: FileSpreadsheet,
+      tono: 'bg-slate-900 text-white',
+      titulo: 'Registro masivo desde Excel',
+      detalle: 'Importe muchos mantenimientos de una hoja de cálculo',
+      accion: onOpenBulkImport,
+    },
+    {
+      id: 'anual',
+      Icono: CalendarRange,
+      tono: 'bg-slate-900 text-white',
+      titulo: 'Descarga anual de registros',
+      detalle: 'Informe consolidado del año o de un mes en Excel',
+      accion: onOpenAnnualModal,
+    },
+  ].filter(Boolean) as {
+    id: string;
+    Icono: typeof Search;
+    tono: string;
+    titulo: string;
+    detalle: string;
+    accion: () => void;
+  }[];
+
+  const FILTROS_ESTADO = [
+    { id: 'All', etiqueta: 'Todos' },
+    { id: 'funcional', etiqueta: 'Funcional' },
+    { id: 'espera', etiqueta: 'Espera repuestos' },
+    { id: 'fuera', etiqueta: 'Fuera de servicio' },
+  ];
+
   return (
-    <div className="pb-28 lg:pb-10 pt-4 px-4 max-w-md lg:max-w-none mx-auto space-y-4.5 animate-in fade-in duration-200">
-      
-      {/* Title & Subtitle matching Image 3 */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-          Registro de mantenimientos
-        </h2>
-        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-          Registra, filtra y exporta el historial de mantenimientos
-        </p>
+    <div className="space-y-5 px-4 pt-4 pb-32 lg:space-y-6 lg:px-8 lg:pt-6 lg:pb-12">
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="t-display">Registro de mantenimientos</h1>
+          <p className="t-lead mt-2">Registra, filtra y exporta el historial de mantenimientos</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5 lg:flex">
+          <button
+            id="btn-import-records"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="btn btn-ghost px-3"
+          >
+            <Upload className="size-4" />
+            Importar
+          </button>
+          <button id="btn-download-excel" type="button" onClick={handleDownloadAllFiltered} className="btn btn-ink px-3">
+            <Download className="size-4" />
+            Descargar Excel
+          </button>
+        </div>
       </div>
 
-      {/* Insertar un reporte olvidado: renumera los posteriores, asi que
-          va aparte del registro normal y con su propio color. */}
-      {onOpenInsertarReporte && (
-        <button
-          type="button"
-          onClick={onOpenInsertarReporte}
-          className="w-full flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-left transition hover:bg-amber-50"
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white">
-            <CornerDownLeft className="h-4.5 w-4.5 text-amber-700" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-amber-900">
-              Insertar un reporte olvidado
-            </span>
-            <span className="block text-[11px] text-amber-700/80">
-              Se ubica en el número que usted indique y corre los siguientes
-            </span>
-          </span>
-        </button>
-      )}
-
-      {/* Registro masivo desde Excel */}
-      {onOpenBulkImport && (
-        <button
-          type="button"
-          onClick={onOpenBulkImport}
-          className="w-full flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-left transition hover:bg-emerald-50"
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white">
-            <FileSpreadsheet className="h-4.5 w-4.5 text-emerald-700" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-emerald-900">
-              Registro masivo desde Excel
-            </span>
-            <span className="block text-[11px] text-emerald-700/80">
-              Importe muchos mantenimientos de una hoja de cálculo
-            </span>
-          </span>
-        </button>
-      )}
-
-      {/* Hidden File Input for Import */}
       <input
         type="file"
         ref={fileInputRef}
@@ -197,253 +190,227 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
         className="hidden"
       />
 
-      {/* Top Action Buttons matching Image 3 */}
-      <div className="grid grid-cols-2 gap-3">
-        
-        {/* Import Button */}
-        <button
-          id="btn-import-records"
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="py-3 px-4 bg-white border border-slate-300 hover:bg-slate-50 active:bg-slate-100 text-blue-900 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 shadow-2xs transition-colors"
-        >
-          <Upload className="w-4 h-4 text-blue-700" />
-          <span>Importar</span>
-        </button>
-
-        {/* Download Excel Button */}
-        <button
-          id="btn-download-excel"
-          type="button"
-          onClick={handleDownloadAllFiltered}
-          className="py-3 px-4 bg-blue-900 hover:bg-blue-950 active:bg-blue-800 text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          <span>Descargar Excel</span>
-        </button>
+      {/* Herramientas */}
+      <div className="soft grid gap-1 p-2 lg:grid-cols-3">
+        {herramientas.map(({ id, Icono, tono, titulo, detalle, accion }) => (
+          <button
+            key={id}
+            id={id === 'anual' ? 'btn-open-annual-modal' : undefined}
+            type="button"
+            onClick={accion}
+            className="flex items-center gap-3 rounded-2xl p-3 text-left transition-colors hover:bg-white active:bg-white"
+          >
+            <span className={`flex size-10 shrink-0 items-center justify-center rounded-full ${tono}`}>
+              <Icono className="size-[18px]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-slate-900">{titulo}</span>
+              <span className="block text-[13px] leading-snug text-slate-500">{detalle}</span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-slate-400" />
+          </button>
+        ))}
       </div>
 
-      {/* Annual Consolidation Button banner */}
-      <div className="flex items-center justify-between bg-blue-50/80 border border-blue-200 rounded-xl px-3.5 py-2.5">
-        <div className="flex items-center gap-2">
-          <FileSpreadsheet className="w-4 h-4 text-blue-700" />
-          <span className="text-xs font-bold text-blue-950">Descarga Anual de Registros</span>
-        </div>
-        <button
-          id="btn-open-annual-modal"
-          onClick={onOpenAnnualModal}
-          className="text-xs bg-blue-700 hover:bg-blue-800 text-white font-bold px-3 py-1 rounded-lg transition-colors shadow-2xs"
-        >
-          Exportar Año
-        </button>
-      </div>
-
-      {/* Search & Filter Container matching Image 3 */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs space-y-2.5">
-        
-        {/* Search Bar */}
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-            <Search className="w-4 h-4" />
-          </div>
-          <input
-            id="input-search-records"
-            type="text"
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Busqueda por nombre, numero de serie, etc..."
-            className="w-full pl-9 pr-3.5 py-2 bg-slate-50/60 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent font-medium"
-          />
-        </div>
-
-        {/* Filter Dropdowns Grid */}
-        <div className="grid grid-cols-2 gap-2">
-          
-          {/* Brand Filter */}
-          <div>
-            <select
-              id="select-filter-brand"
-              value={selectedBrand}
+      {/* Búsqueda y filtros */}
+      <div className="space-y-3">
+        <div className="flex flex-col gap-2.5 lg:flex-row">
+          <label className="relative block flex-1">
+            <span className="sr-only">Buscar registros</span>
+            <Search className="pointer-events-none absolute top-1/2 left-4 size-[18px] -translate-y-1/2 text-slate-500" />
+            <input
+              id="input-search-records"
+              type="search"
+              value={searchTerm}
               onChange={(e) => {
-                setSelectedBrand(e.target.value);
+                setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-600"
-            >
-              <option value="All">Todas las marcas</option>
-              {uniqueBrands.filter(b => b !== 'All').map(b => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
-          </div>
+              placeholder="Buscar por equipo, serie, marca, servicio…"
+              className="input rounded-full border-transparent bg-slate-100 pl-11 hover:border-transparent focus:bg-white"
+            />
+          </label>
 
-          {/* Equipment Filter */}
-          <div>
-            <select
-              id="select-filter-equipment"
-              value={selectedEquipmentType}
-              onChange={(e) => {
-                setSelectedEquipmentType(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-600"
-            >
-              <option value="All">Todos los equipos</option>
-              {uniqueEquipments.filter(e => e !== 'All').map(e => (
-                <option key={e} value={e}>{e}</option>
-              ))}
-            </select>
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* Record Cards List matching Image 3 */}
-      <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-3 lg:items-start">
-        {paginatedRecords.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
-            <p className="text-xs text-slate-500">No se encontraron registros que coincidan con la búsqueda.</p>
-            <button
-              onClick={onNewRecord}
-              className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100"
-            >
-              <Plus className="w-3.5 h-3.5" /> Crear Nuevo Registro
-            </button>
-          </div>
-        ) : (
-          paginatedRecords.map((record) => {
-            const isCompleted = grupoEstado(record.finalStatus) === 'funcional';
-            const isPending = grupoEstado(record.finalStatus) === 'espera';
-            
-            return (
-              <div
-                key={record.id}
-                id={`card-record-${record.id}`}
-                className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-xs transition-shadow space-y-3"
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:flex lg:w-[440px]">
+            <label className="block lg:flex-1">
+              <span className="sr-only">Marca</span>
+              <select
+                id="select-filter-brand"
+                value={selectedBrand}
+                onChange={(e) => {
+                  setSelectedBrand(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="input rounded-full"
               >
-                {/* Card Header: ID & Status Badge */}
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-blue-900">
-                    {etiquetaReporte(record)}
-                  </span>
-                  
-                  {/* Status Pill Badge matching image */}
-                  {isCompleted ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <CheckCircle className="w-3 h-3" />
-                      Operativo
-                    </span>
-                  ) : isPending ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                      <AlertTriangle className="w-3 h-3" />
-                      En espera de repuestos
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                      <XCircle className="w-3 h-3" />
-                      Fuera de servicio
-                    </span>
-                  )}
-                </div>
+                <option value="All">Todas las marcas</option>
+                {uniqueBrands.filter((b) => b !== 'All').map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block lg:flex-1">
+              <span className="sr-only">Equipo</span>
+              <select
+                id="select-filter-equipment"
+                value={selectedEquipmentType}
+                onChange={(e) => {
+                  setSelectedEquipmentType(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="input rounded-full"
+              >
+                <option value="All">Todos los equipos</option>
+                {uniqueEquipments.filter((e) => e !== 'All').map((e) => (
+                  <option key={e} value={e}>{e}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
 
-                {/* Equipment Title and Brand • Date */}
-                <div>
-                  <h4 className="text-base font-bold text-slate-900 leading-snug">
-                    {record.equipment}
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {record.brand} • {record.date} • <span className="text-slate-700 font-medium">{record.service}</span>
-                  </p>
-                </div>
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:px-0" role="group" aria-label="Estado del equipo">
+          {FILTROS_ESTADO.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              aria-pressed={selectedStatus === f.id}
+              onClick={() => {
+                setSelectedStatus(f.id);
+                setCurrentPage(1);
+              }}
+              className="pill-tab"
+            >
+              {f.etiqueta}
+            </button>
+          ))}
+        </div>
 
-                {/* Subtle Divider */}
-                <hr className="border-slate-100" />
-
-                {/* Action Buttons: Edit & Export matching Image 3 */}
-                <div className="flex items-center justify-end gap-2 pt-0.5">
-                  <button
-                    id={`btn-view-${record.id}`}
-                    onClick={() => onSelectRecord(record)}
-                    className="py-1.5 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Ver</span>
-                  </button>
-
-                  <button
-                    id={`btn-edit-${record.id}`}
-                    onClick={() => onEditRecord(record)}
-                    className="py-1.5 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
-                  >
-                    <Edit3 className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Editar</span>
-                  </button>
-
-                  <button
-                    id={`btn-export-${record.id}`}
-                    onClick={() => exportSingleRecordToExcel(record)}
-                    className="py-1.5 px-3 bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-700 text-slate-800 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
-                    title="Exportar hoja técnica a Excel"
-                  >
-                    <Download className="w-3.5 h-3.5 text-blue-700" />
-                    <span>Exportar</span>
-                  </button>
-                </div>
-
-              </div>
-            );
-          })
-        )}
+        <p className="text-[13px] text-slate-500" aria-live="polite">
+          <span className="font-bold text-slate-700 tabular-nums">{filteredRecords.length}</span> de{' '}
+          <span className="tabular-nums">{records.length}</span> registros
+        </p>
       </div>
 
-      {/* Pagination Footer matching Image 3 */}
-      {filteredRecords.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center justify-between text-xs text-slate-600 shadow-2xs overflow-x-auto">
-          <div>
-            Mostrando {Math.min((currentPage - 1) * itemsPerPage + 1, filteredRecords.length)}-
-            {Math.min(currentPage * itemsPerPage, filteredRecords.length)} de {filteredRecords.length} registros
-          </div>
+      {/* Resultados */}
+      {paginatedRecords.length === 0 ? (
+        <div className="card px-6 py-10 text-center">
+          <p className="text-[15px] font-bold text-slate-900">Sin resultados</p>
+          <p className="mt-1 text-sm text-slate-500">
+            No se encontraron registros que coincidan con la búsqueda.
+          </p>
+          <button onClick={onNewRecord} className="btn btn-primary mt-5">
+            <Plus className="size-4" /> Crear nuevo registro
+          </button>
+        </div>
+      ) : (
+        <ul className="card divide-y divide-slate-100 overflow-hidden">
+          {paginatedRecords.map((record) => (
+            <li key={record.id} id={`card-record-${record.id}`}>
+              <button
+                id={`btn-view-${record.id}`}
+                onClick={() => onSelectRecord(record)}
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 active:bg-slate-100 lg:px-6 lg:py-4"
+              >
+                <span className="w-10 shrink-0 text-[13px] font-bold text-slate-500 tabular-nums lg:w-12 lg:text-sm">
+                  {etiquetaReporte(record)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="line-clamp-2 text-[15px] leading-snug font-bold text-slate-900">{record.equipment}</span>
+                  <span className="mt-0.5 block text-[13px] font-bold text-slate-700">{record.service || 'Sin servicio'}</span>
+                  <span className="block text-[13px] text-slate-500">
+                    {record.brand} · {fechaCorta(record.date)}
+                  </span>
+                </span>
+                <span className="hidden sm:block">
+                  <EstadoBadge estado={record.finalStatus} />
+                </span>
+                <span className="sm:hidden">
+                  <EstadoBadge estado={record.finalStatus} corto />
+                </span>
+                <ChevronRight className="hidden size-4 shrink-0 text-slate-400 sm:block" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
-          <div className="flex items-center gap-1">
+      {/* Paginación */}
+      {filteredRecords.length > 0 && totalPages > 1 && (
+        <nav aria-label="Páginas" className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+          <p className="text-[13px] text-slate-500 tabular-nums">
+            Mostrando {Math.min((currentPage - 1) * itemsPerPage + 1, filteredRecords.length)}–
+            {Math.min(currentPage * itemsPerPage, filteredRecords.length)} de {filteredRecords.length}
+          </p>
+
+          <div className="no-scrollbar flex max-w-full min-w-0 items-center gap-1 overflow-x-auto">
             <button
               id="btn-prev-page"
               disabled={currentPage === 1}
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              className="p-1 rounded-md text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="btn-icon disabled:opacity-30"
+              aria-label="Página anterior"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="size-5" />
             </button>
 
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-              <button
-                key={pageNum}
-                onClick={() => setCurrentPage(pageNum)}
-                className={`w-7 h-7 rounded-md font-bold text-xs flex items-center justify-center transition-colors ${
-                  currentPage === pageNum
-                    ? 'bg-blue-900 text-white'
-                    : 'text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                {pageNum}
-              </button>
+            {/* En el celular: primera, actual y última. Desde sm: también las vecinas. */}
+            {[0, 1].map((vecinas) => (
+              <div key={vecinas} className={`items-center gap-1 ${vecinas ? 'hidden sm:flex' : 'flex sm:hidden'}`}>
+                {paginasVisibles(currentPage, totalPages, vecinas).map((pageNum, i) =>
+                  pageNum === null ? (
+                    <span key={`h${i}`} className="w-6 text-center text-sm text-slate-400" aria-hidden="true">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      aria-current={currentPage === pageNum ? 'page' : undefined}
+                      aria-label={`Página ${pageNum}`}
+                      className={`flex h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold tabular-nums transition-colors ${
+                        currentPage === pageNum ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ),
+                )}
+              </div>
             ))}
 
             <button
               id="btn-next-page"
               disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              className="p-1 rounded-md text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="btn-icon disabled:opacity-30"
+              aria-label="Página siguiente"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="size-5" />
             </button>
           </div>
-        </div>
+        </nav>
       )}
-
     </div>
   );
 };
+
+/**
+ * Qué números de página mostrar: la primera, la última, la actual y sus
+ * `vecinas` a cada lado; null marca un salto (…). Con 98 páginas, pintarlas
+ * todas desbordaba la pantalla.
+ */
+function paginasVisibles(actual: number, total: number, vecinas: number): (number | null)[] {
+  const numeros = new Set([1, total]);
+  for (let n = actual - vecinas; n <= actual + vecinas; n++) {
+    if (n >= 1 && n <= total) numeros.add(n);
+  }
+
+  const orden = [...numeros].sort((x, y) => x - y);
+  const salida: (number | null)[] = [];
+  orden.forEach((n, i) => {
+    if (i > 0 && n - orden[i - 1] > 1) salida.push(null);
+    salida.push(n);
+  });
+  return salida;
+}

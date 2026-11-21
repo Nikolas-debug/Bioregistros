@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutGrid, PlusCircle, FileText } from 'lucide-react';
+import { LayoutGrid, Plus, FileText } from 'lucide-react';
 import { ActiveTab } from '../types';
 
 interface BottomNavProps {
@@ -7,18 +7,43 @@ interface BottomNavProps {
   onTabChange: (tab: ActiveTab) => void;
 }
 
-const PESTANAS: { id: ActiveTab; etiqueta: string; Icono: typeof LayoutGrid }[] = [
+export const PESTANAS: { id: ActiveTab; etiqueta: string; Icono: typeof LayoutGrid }[] = [
   { id: 'inicio', etiqueta: 'Inicio', Icono: LayoutGrid },
-  { id: 'registrar', etiqueta: 'Registrar', Icono: PlusCircle },
+  { id: 'registrar', etiqueta: 'Registrar', Icono: Plus },
   { id: 'documentos', etiqueta: 'Documentos', Icono: FileText },
 ];
 
+/**
+ * Barra inferior del celular. "Registrar" va al centro como píldora azul:
+ * es la acción del día y queda justo bajo el pulgar.
+ */
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) => {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-lg pb-safe">
-      <div className="max-w-md mx-auto grid grid-cols-3 h-16">
+    <nav
+      aria-label="Secciones"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white pb-safe lg:hidden"
+    >
+      <div className="mx-auto grid h-[72px] max-w-md grid-cols-3 items-center px-2">
         {PESTANAS.map(({ id, etiqueta, Icono }) => {
           const activa = activeTab === id;
+
+          if (id === 'registrar') {
+            return (
+              <div key={id} className="flex justify-center">
+                <button
+                  id={`nav-tab-${id}`}
+                  onClick={() => onTabChange(id)}
+                  aria-current={activa ? 'page' : undefined}
+                  className={`btn h-13 px-5 shadow-[0_4px_14px_rgba(29,78,216,0.35)] ${
+                    activa ? 'bg-blue-900 text-white' : 'btn-primary'
+                  }`}
+                >
+                  <Icono className="size-5" strokeWidth={2.5} />
+                  {etiqueta}
+                </button>
+              </div>
+            );
+          }
 
           return (
             <button
@@ -26,18 +51,18 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
               id={`nav-tab-${id}`}
               onClick={() => onTabChange(id)}
               aria-current={activa ? 'page' : undefined}
-              className={`flex flex-col items-center justify-center transition-colors ${
-                activa
-                  ? 'text-blue-600 font-semibold'
-                  : 'text-slate-500 hover:text-slate-800'
+              className={`flex h-full flex-col items-center justify-center gap-1 rounded-2xl transition-colors ${
+                activa ? 'text-slate-900' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Icono
-                className={`w-6 h-6 mb-1 transition-transform ${
-                  activa ? 'scale-110 stroke-[2.5]' : 'stroke-[1.75]'
+              <span
+                className={`flex h-8 w-14 items-center justify-center rounded-full transition-colors ${
+                  activa ? 'bg-slate-900 text-white' : ''
                 }`}
-              />
-              <span className="text-xs">{etiqueta}</span>
+              >
+                <Icono className="size-5" strokeWidth={activa ? 2.25 : 1.75} />
+              </span>
+              <span className={`text-xs ${activa ? 'font-bold' : 'font-medium'}`}>{etiqueta}</span>
             </button>
           );
         })}

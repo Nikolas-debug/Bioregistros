@@ -1,22 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { 
-  X, 
-  Database, 
-  HardDrive, 
-  Download, 
-  Upload, 
-  RotateCcw, 
-  User, 
-  ShieldCheck, 
-  Smartphone, 
-  LogOut, 
-  CheckCircle2, 
-  Wifi, 
-  WifiOff, 
-  FileSpreadsheet,
-  Building2,
-  Info
-} from 'lucide-react';
+import { Download, Upload, RotateCcw, LogOut, CheckCircle2, Settings } from 'lucide-react';
+import { Campo, Sheet } from './ui';
 import { UserProfile, DatabaseStats } from '../types';
 
 interface SettingsModalProps {
@@ -69,203 +53,111 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-900 to-blue-800 p-5 text-white flex items-center justify-between sticky top-0 z-10">
-          <div className="flex items-center gap-2">
-            <Database className="w-5 h-5 text-sky-300" />
-            <div>
-              <h3 className="font-bold text-base">Configuración & IndexedDB</h3>
-              <p className="text-xs text-blue-200">Gestión de datos offline y perfil</p>
-            </div>
+    <Sheet
+      titulo="Configuración"
+      subtitulo="Gestión de datos sin conexión y perfil"
+      icono={<Settings className="size-5" />}
+      onClose={onClose}
+    >
+      {/* Base de datos local */}
+      <section className="soft p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base font-medium text-slate-900">Base de datos local</h3>
+          <span className="badge badge-ok">Activa</span>
+        </div>
+        <dl className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-2xl bg-white p-4">
+            <dt className="kv-label">Registros de mantenimiento</dt>
+            <dd className="mt-1 text-2xl font-medium text-slate-900 tabular-nums">{stats.totalRecords}</dd>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full text-blue-200 hover:text-white hover:bg-white/10"
-          >
-            <X className="w-5 h-5" />
+          <div className="rounded-2xl bg-white p-4">
+            <dt className="kv-label">Equipos en inventario</dt>
+            <dd className="mt-1 text-2xl font-medium text-slate-900 tabular-nums">{stats.totalEquipments}</dd>
+          </div>
+        </dl>
+        <p className="mt-3 text-[13px] leading-relaxed text-slate-600">
+          Todos los datos se almacenan localmente en su dispositivo y funcionan sin conexión a internet.
+        </p>
+      </section>
+
+      {/* Respaldo */}
+      <section className="mt-7">
+        <h3 className="text-base font-medium text-slate-900">Respaldo y restauración</h3>
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
+        <div className="mt-3 grid grid-cols-2 gap-2.5">
+          <button type="button" onClick={onExportBackup} className="btn btn-ghost px-3">
+            <Download className="size-4" /> Exportar JSON
+          </button>
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="btn btn-ghost px-3">
+            <Upload className="size-4" /> Restaurar JSON
           </button>
         </div>
+      </section>
 
-        {/* Body */}
-        <div className="p-5 space-y-5 text-xs">
-          
-          {/* IndexedDB Status Card */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
-                <HardDrive className="w-4 h-4 text-blue-600" /> Estado de la Base de Datos Local
-              </span>
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                IndexedDB v1 Activo
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-slate-700">
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-400 block font-medium">Registros de Mantenimiento</span>
-                <span className="text-base font-bold text-blue-900 font-mono">{stats.totalRecords}</span>
-              </div>
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-400 block font-medium">Equipos en Inventario</span>
-                <span className="text-base font-bold text-blue-900 font-mono">{stats.totalEquipments}</span>
-              </div>
-            </div>
-
-            {/* Offline readiness badge */}
-            <div className="flex items-center gap-2 text-[11px] text-slate-600 bg-blue-50/70 border border-blue-100 p-2 rounded-xl">
-              <ShieldCheck className="w-4 h-4 text-blue-700 shrink-0" />
-              <span>
-                Todos los datos se almacenan localmente en su dispositivo y funcionan sin conexión a internet.
-              </span>
-            </div>
-          </div>
-
-          {/* Backup & Restore Section */}
-          <div className="space-y-2.5">
-            <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-              <Download className="w-4 h-4 text-blue-600" /> Respaldo & Restauración de Datos
-            </h4>
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".json"
-              className="hidden"
-            />
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={onExportBackup}
-                className="py-2.5 px-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
-              >
-                <Download className="w-3.5 h-3.5 text-blue-700" />
-                <span>Exportar JSON</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="py-2.5 px-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
-              >
-                <Upload className="w-3.5 h-3.5 text-blue-700" />
-                <span>Restaurar JSON</span>
-              </button>
-            </div>
-          </div>
-
-          {/* User Profile Settings */}
-          <form onSubmit={handleSaveProfile} className="space-y-3 pt-1 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                <User className="w-4 h-4 text-blue-600" /> Datos del Ingeniero / Institución
-              </h4>
-              {savedSuccess && (
-                <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5">
-                  <CheckCircle2 className="w-3 h-3" /> Guardado
-                </span>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-slate-600 mb-1">Nombre Completo</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-slate-600 mb-1">Institución / Clínica</label>
-              <input
-                type="text"
-                value={institution}
-                onChange={(e) => setInstitution(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 mb-1">Cargo</label>
-                <input
-                  type="text"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs transition-colors shadow-2xs"
-            >
-              Actualizar Perfil
-            </button>
-          </form>
-
-          {/* Borrado total de datos locales y cierre de sesion */}
-          <div className="pt-2 border-t border-slate-100 space-y-2">
-            {!confirmReset ? (
-              <button
-                type="button"
-                onClick={() => setConfirmReset(true)}
-                className="w-full py-2 text-slate-600 hover:text-slate-900 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-                <span>Borrar todos los datos de este dispositivo</span>
-              </button>
-            ) : (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2 animate-in fade-in">
-                <p className="text-[11px] text-amber-900 font-semibold text-center">
-                  Se borrarán los registros y el inventario guardados aquí.
-                </p>
-                <p className="text-[11px] text-amber-800 text-center leading-relaxed">
-                  Lo que ya se sincronizó sigue a salvo en el servidor. Lo que
-                  esté pendiente de subir se pierde.
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmReset(false)}
-                    className="py-1 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await onResetData();
-                      setConfirmReset(false);
-                    }}
-                    className="py-1 bg-rose-600 text-white font-bold rounded-lg text-xs"
-                  >
-                    Sí, borrar
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="w-full py-2 text-rose-600 hover:text-rose-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Cerrar Sesión</span>
-            </button>
-          </div>
-
+      {/* Perfil */}
+      <form onSubmit={handleSaveProfile} className="mt-7 border-t border-slate-200 pt-6">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base font-medium text-slate-900">Datos del ingeniero e institución</h3>
+          {savedSuccess && (
+            <span className="badge badge-ok" role="status">
+              <CheckCircle2 className="size-3.5" /> Guardado
+            </span>
+          )}
         </div>
+        <div className="mt-3 grid gap-4">
+          <Campo etiqueta="Nombre completo">
+            {(id) => <input id={id} type="text" value={name} onChange={(e) => setName(e.target.value)} className="input" />}
+          </Campo>
+          <Campo etiqueta="Institución / clínica">
+            {(id) => (
+              <input id={id} type="text" value={institution} onChange={(e) => setInstitution(e.target.value)} className="input" />
+            )}
+          </Campo>
+          <Campo etiqueta="Cargo">
+            {(id) => <input id={id} type="text" value={role} onChange={(e) => setRole(e.target.value)} className="input" />}
+          </Campo>
+        </div>
+        <button type="submit" className="btn btn-ink mt-4 w-full">
+          Actualizar perfil
+        </button>
+      </form>
 
-      </div>
-    </div>
+      {/* Borrado y cierre de sesión */}
+      <section className="mt-7 space-y-3 border-t border-slate-200 pt-6">
+        {!confirmReset ? (
+          <button type="button" onClick={() => setConfirmReset(true)} className="btn btn-ghost w-full">
+            <RotateCcw className="size-4" /> Borrar todos los datos de este dispositivo
+          </button>
+        ) : (
+          <div className="rounded-3xl bg-amber-50 p-4">
+            <p className="text-sm font-bold text-amber-950">
+              Se borrarán los registros y el inventario guardados aquí.
+            </p>
+            <p className="mt-1 text-[13px] leading-relaxed text-amber-900">
+              Lo que ya se sincronizó sigue a salvo en el servidor. Lo que esté pendiente de subir se pierde.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <button type="button" onClick={() => setConfirmReset(false)} className="btn btn-ghost bg-white">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await onResetData();
+                  setConfirmReset(false);
+                }}
+                className="btn btn-danger"
+              >
+                Sí, borrar
+              </button>
+            </div>
+          </div>
+        )}
+
+        <button type="button" onClick={onLogout} className="btn w-full border-2 border-rose-200 text-rose-700 hover:bg-rose-50">
+          <LogOut className="size-4" /> Cerrar sesión
+        </button>
+      </section>
+    </Sheet>
   );
 };

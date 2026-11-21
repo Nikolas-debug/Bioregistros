@@ -22,6 +22,8 @@ export interface MaintenanceRecord {
   id: string;
 
   /** Id entero que asigna PostgreSQL. Solo existe después de sincronizar. */
+  /** Solo en la bajada: el registro se borró en el servidor. */
+  eliminado?: boolean;
   idServidor?: number;
 
   /**
@@ -247,4 +249,12 @@ export interface FilaImportada {
   errores: string[];
   advertencias: string[];
   duplicado: boolean;
+}
+
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** "2026-10-26" → "26 oct 2026", sin pasar por Date (que lo correría un día por la zona horaria). */
+export function fechaCorta(iso: string): string {
+  const [a, m, d] = (iso || '').split('-').map(Number);
+  return a && m && d ? `${d} ${MESES_CORTOS[m - 1]} ${a}` : iso || '—';
 }

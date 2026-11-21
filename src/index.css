@@ -1,1 +1,238 @@
 @import "tailwindcss";
+
+/* Montserrat: the documented fallback for Meta's Optimistic VF (meta.md).
+   One variable file per subset serves 400, 500 and 700. */
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/montserrat-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/montserrat-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@theme {
+  --font-sans: "Montserrat", Helvetica, Arial, "Noto Sans", sans-serif;
+  --radius-feature: 2rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Base and browser surfaces                                           */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-white font-sans text-slate-900 antialiased;
+    letter-spacing: -0.01em;
+  }
+  ::selection {
+    @apply bg-blue-100 text-slate-900;
+  }
+  input,
+  textarea {
+    caret-color: var(--color-blue-700);
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-600;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-slate-300) transparent;
+  }
+  button:not(:disabled),
+  [role="button"] {
+    cursor: pointer;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Components: the meta.md vocabulary in the app's palette             */
+/* ------------------------------------------------------------------ */
+
+@layer components {
+  /* Type */
+  .t-display {
+    @apply text-[28px] leading-[1.2] font-medium tracking-[-0.02em] text-balance text-slate-900 lg:text-4xl;
+  }
+  .t-section {
+    @apply text-xl leading-tight font-medium tracking-[-0.015em] text-slate-900 lg:text-2xl;
+  }
+  .t-lead {
+    @apply text-base leading-relaxed text-slate-600;
+  }
+
+  /* Buttons: pills. 48px tall so a gloved thumb lands them. */
+  .btn {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 text-sm font-bold whitespace-nowrap [&_svg]:shrink-0 transition-colors select-none disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  .btn-lg {
+    @apply min-h-14 px-7 text-base;
+  }
+  .btn-sm {
+    @apply min-h-11 px-4 text-[13px];
+  }
+  .btn-primary {
+    @apply bg-blue-700 text-white hover:bg-blue-800 active:bg-blue-900;
+  }
+  .btn-ink {
+    @apply bg-slate-900 text-white hover:bg-slate-700 active:bg-slate-800;
+  }
+  .btn-outline {
+    @apply border-2 border-slate-900 text-slate-900 hover:bg-slate-100 active:bg-slate-200;
+  }
+  .btn-ghost {
+    @apply border-2 border-slate-900/12 text-slate-900 hover:border-slate-900/25 hover:bg-slate-50 active:bg-slate-100;
+  }
+  .btn-danger {
+    @apply bg-rose-700 text-white hover:bg-rose-800 active:bg-rose-900;
+  }
+  .btn-text {
+    @apply inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-blue-700 hover:bg-blue-50;
+  }
+  .btn-icon {
+    @apply inline-flex size-11 shrink-0 items-center justify-center rounded-full text-slate-700 transition-colors hover:bg-slate-100 active:bg-slate-200;
+  }
+
+  /* Pill tabs and toggles: ink when on. */
+  .pill-tab {
+    @apply inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 transition-colors hover:border-slate-400;
+  }
+  .pill-tab[aria-pressed="true"],
+  .pill-tab[aria-current="page"],
+  .pill-tab.is-on {
+    @apply border-slate-900 bg-slate-900 text-white;
+  }
+
+  /* Surfaces */
+  .card {
+    @apply rounded-3xl border border-slate-200 bg-white;
+  }
+  .soft {
+    @apply rounded-3xl bg-slate-100;
+  }
+  .strip {
+    @apply rounded-feature bg-slate-900 text-white;
+  }
+
+  /* Forms */
+  .field-label {
+    @apply mb-1.5 block text-sm font-bold text-slate-900;
+  }
+  .field-hint {
+    @apply mt-1.5 text-xs leading-snug text-slate-500;
+  }
+  .input {
+    @apply block min-h-12 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-base text-slate-900 transition-colors placeholder:text-slate-500 hover:border-slate-400 focus:border-blue-600 focus:shadow-[inset_0_0_0_1px_var(--color-blue-600)] focus:outline-none disabled:bg-slate-50 disabled:text-slate-500;
+  }
+  textarea.input {
+    @apply min-h-24 resize-y leading-relaxed;
+  }
+  select.input {
+    @apply appearance-none bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-size: 18px;
+    background-position: right 0.875rem center;
+  }
+
+  /* Status badges: solid pills, readable at a glance in the field. */
+  .badge {
+    @apply inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs leading-none font-bold whitespace-nowrap;
+  }
+  .badge-ok {
+    @apply bg-emerald-700 text-white;
+  }
+  .badge-wait {
+    @apply bg-amber-400 text-slate-900;
+  }
+  .badge-out {
+    @apply bg-rose-700 text-white;
+  }
+  .badge-none {
+    @apply bg-slate-200 text-slate-700;
+  }
+  .badge-info {
+    @apply bg-blue-50 text-blue-800;
+  }
+
+  /* Notices */
+  .notice {
+    @apply flex gap-3 rounded-2xl p-4 text-sm leading-relaxed;
+  }
+  .notice-error {
+    @apply bg-rose-50 text-rose-900;
+  }
+  .notice-warn {
+    @apply bg-amber-50 text-amber-950;
+  }
+  .notice-ok {
+    @apply bg-emerald-50 text-emerald-900;
+  }
+  .notice-info {
+    @apply bg-blue-50 text-blue-950;
+  }
+
+  /* Dialogs: a bottom sheet on the phone, a centered panel on the laptop. */
+  .sheet-backdrop {
+    @apply fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-6;
+  }
+  .sheet {
+    @apply flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-feature bg-white shadow-[0_-8px_40px_rgba(15,23,42,0.18)] sm:max-w-lg sm:rounded-feature sm:shadow-[0_24px_64px_rgba(15,23,42,0.25)];
+    animation: sheet-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .sheet-head {
+    @apply flex shrink-0 items-start justify-between gap-3 px-6 pt-6 pb-4;
+  }
+  .sheet-body {
+    @apply flex-1 overflow-y-auto px-6 pb-6;
+  }
+  .sheet-foot {
+    @apply flex shrink-0 gap-3 border-t border-slate-200 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))];
+  }
+
+  /* Definition rows inside detail views */
+  .kv-label {
+    @apply text-xs font-bold text-slate-500;
+  }
+  .kv-value {
+    @apply mt-0.5 text-[15px] font-medium break-words text-slate-900;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
