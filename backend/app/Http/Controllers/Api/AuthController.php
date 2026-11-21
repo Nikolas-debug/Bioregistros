@@ -52,7 +52,9 @@ class AuthController extends Controller
             ], 429);
         }
 
-        $usuario = User::where('email', $datos['email'])->first();
+        // Sin distinguir mayusculas: el teclado del celular pone la primera
+        // letra en mayuscula y "Luis@..." fallaba con la clave correcta.
+        $usuario = User::whereRaw('lower(email) = ?', [mb_strtolower(trim($datos['email']))])->first();
 
         if (! $usuario || ! Hash::check($datos['password'], $usuario->password)) {
             RateLimiter::hit($llave, self::BLOQUEO_SEGUNDOS);

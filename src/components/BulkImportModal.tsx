@@ -297,6 +297,22 @@ export const BulkImportModal: React.FC<Props> = ({
                 </div>
               )}
 
+              {lectura.anulados.length > 0 && (
+                <div className="mb-3 rounded-2xl bg-slate-100 p-4 text-[13px] text-slate-700">
+                  {lectura.anulados.length} fila(s) dicen <strong>ANULADO</strong> y no se importan
+                  {lectura.anulados.some((a) => a.numeroReporte) && (
+                    <>
+                      {' '}(reporte{lectura.anulados.length > 1 ? 's' : ''}{' '}
+                      <span className="tabular-nums">
+                        {lectura.anulados.map((a) => a.numeroReporte ?? `fila ${a.fila}`).join(', ')}
+                      </span>
+                      )
+                    </>
+                  )}
+                  .
+                </div>
+              )}
+
               {lectura.duplicadas > 0 && (
                 <div className="notice notice-warn mb-3 text-[13px]">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" />

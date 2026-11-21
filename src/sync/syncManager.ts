@@ -294,10 +294,16 @@ class SyncManager {
 
     if (listos.length === 0) {
       this.cambiarEstado('inactivo');
+      // Los rechazados no se reintentan solos: decir "en espera" de ellos
+      // hacía creer que se iban a arreglar esperando.
+      const rechazados = colaCompleta.filter((item) => item.rechazado).length;
+      const enEspera = colaCompleta.length - rechazados;
+      const partes = [
+        enEspera > 0 && `${enEspera} registro(s) en espera de reintento programado`,
+        rechazados > 0 && `${rechazados} rechazado(s) por el servidor: revíselos o descártelos`,
+      ].filter(Boolean);
       return {
-        ...vacio(
-          `${colaCompleta.length} registro(s) en espera de reintento programado.`,
-        ),
+        ...vacio(`${partes.join('. ')}.`),
         descargados,
       };
     }
@@ -558,9 +564,18 @@ class SyncManager {
   /** Borra del dispositivo lo que el servidor rechazó. Devuelve cuántos. */
   async descartarRechazados(): Promise<number> {
     const cola = await dbManager.obtenerCola(Infinity);
-    const ids = cola.filter((i) => i.rechazado).map((i) => i.id);
+    const rechazados = cola.filter((i) => i.rechazado);
+    const ids = rechazados.map((i) => i.id);
 
     await dbManager.descartar(ids);
+
+    // Si se descartó una *edición*, el registro sigue en el servidor pero ya
+    // no en el dispositivo, y la bajada normal (solo lo cambiado) no lo
+    // devolvería. Sin marca, la próxima sincronización lo trae todo.
+    if (rechazados.some((i) => i.operacion === 'actualizar')) {
+      await dbManager.guardarPreferencia(CLAVE_MARCADOR, null);
+      this.sincronizar('tras-descartar').catch(() => {});
+    }
     this.selloDatos = Date.now();
     await this.refrescarPendientes();
 

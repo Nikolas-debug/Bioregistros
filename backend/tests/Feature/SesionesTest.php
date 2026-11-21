@@ -24,4 +24,13 @@ class SesionesTest extends TestCase
         $this->assertNull(User::porToken($tokens[1]));
         $this->assertNotNull(User::porToken($tokens[2]));
     }
+
+    public function test_el_correo_no_distingue_mayusculas(): void
+    {
+        User::factory()->create(['email' => 'luis@biomedica.local', 'password' => 'clave-segura-1']);
+
+        $this->postJson('/api/auth/login', ['email' => ' Luis@Biomedica.local', 'password' => 'clave-segura-1'])
+            ->assertOk()
+            ->assertJsonStructure(['token']);
+    }
 }

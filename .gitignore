@@ -25,3 +25,4 @@ backend/public/storage
 composer.phar
 _archivos-backend/
 *.md
+Docs/

@@ -469,7 +469,8 @@ class RegistroSyncService
             'SINSERIE', 'SININVENTARIO', 'ILEGIBLE', 'NOAPLICA', '0', '00', '000',
         ], true);
 
-        return $sinDato || $letras === self::PREFIJO_INVENTARIO ? null : $valor;
+        // Una sola letra o cifra ("L", "O") tampoco identifica a ningun equipo.
+        return $sinDato || strlen($letras) === 1 || $letras === self::PREFIJO_INVENTARIO ? null : $valor;
     }
 
     /** Lo que traen todos los codigos de inventario de la clinica antes del consecutivo. */

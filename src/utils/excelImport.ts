@@ -415,6 +415,8 @@ export interface ResultadoLectura {
   reporteMax?: number;
   /** Números que faltan dentro de ese rango. */
   reportesFaltantes: number[];
+  /** Filas marcadas ANULADO en el seguimiento: no se importan. */
+  anulados: { fila: number; numeroReporte?: number }[];
 }
 
 /** Nombre legible de cada campo, para los mensajes de la interfaz. */
@@ -503,6 +505,7 @@ export async function leerExcel(
   /** La fecha de la última fila que sí la traía. */
   let fechaArrastrada: string | null = null;
   let fechasHeredadas = 0;
+  const anulados: { fila: number; numeroReporte?: number }[] = [];
 
   for (let i = encabezado.indice + 1; i < matriz.length; i++) {
     const fila = matriz[i] || [];
@@ -514,6 +517,15 @@ export async function leerExcel(
     mapa.forEach((campo, indice) => {
       bruto[campo] = fila[indice];
     });
+
+    // Un reporte anulado en papel: no es un mantenimiento. Se reserva el
+    // número (para que no salga como faltante) y se sigue de largo.
+    if (esAnulado(fila)) {
+      const n = Number(String(bruto.numeroReporte ?? '').replace(/\D/g, ''));
+      anulados.push({ fila: numeroExcel, numeroReporte: n > 0 ? n : undefined });
+      if (n > 0) reportesDelArchivo.set(n, numeroExcel);
+      continue;
+    }
 
     const errores: string[] = [];
     const advertencias: string[] = [];
@@ -527,7 +539,15 @@ export async function leerExcel(
     if (!fecha) {
       const escrita = texto(bruto.date);
 
-      if (escrita) {
+      if (escrita && !/\d/.test(escrita) && fechaArrastrada) {
+        // "DE", "IDEM"… sin un solo número no es una fecha mal escrita sino
+        // un sobrante en la celda: se trata como vacía.
+        fecha = fechaArrastrada;
+        fechasHeredadas++;
+        advertencias.push(
+          `La celda de fecha dice "${escrita}"; se tomó la del ${fecha}, de la fila anterior.`,
+        );
+      } else if (escrita) {
         // Hay algo escrito y no se entiende: eso sí es un error.
         errores.push(
           `La fecha "${escrita}" no se entiende. Use AAAA-MM-DD o DD/MM/AAAA.`,
@@ -607,8 +627,15 @@ export async function leerExcel(
       advertencias.push('Sin casilla marcada: queda clasificado como Otro.');
     }
 
-    const serie = texto(bruto.serialNumber);
-    const inventario = texto(bruto.inventoryCode);
+    const serie = identificador(texto(bruto.serialNumber));
+    const inventario = identificador(texto(bruto.inventoryCode));
+
+    if (texto(bruto.serialNumber) && !serie) {
+      advertencias.push(`SERIE "${texto(bruto.serialNumber)}" se toma como sin dato.`);
+    }
+    if (texto(bruto.inventoryCode) && !inventario) {
+      advertencias.push(`INVENTARIO "${texto(bruto.inventoryCode)}" se toma como sin dato.`);
+    }
 
     if (!serie && !inventario) {
       advertencias.push('Sin serie ni inventario: se creará un equipo nuevo.');
@@ -634,7 +661,7 @@ export async function leerExcel(
       failureComments: texto(bruto.failureComments),
       additionalObservations: texto(bruto.additionalObservations),
       finalStatus: texto(bruto.finalStatus),
-      spareParts: texto(bruto.spareParts),
+      spareParts: SIN_DATO.has(soloLetras(texto(bruto.spareParts))) ? '' : texto(bruto.spareParts),
       technicianName: texto(bruto.technicianName) || opciones.tecnicoPorDefecto || '',
       createdAt: ahora,
       updatedAt: ahora,
@@ -655,8 +682,30 @@ export async function leerExcel(
     }),
   );
 
+  /* --- 3b. Números fuera de secuencia --- */
+  // 4479 entre 3478 y 3480 es casi seguro un 3479 mal tecleado. No se
+  // corrige solo: se avisa para que lo arreglen en el archivo.
+  const conNumero = filas.filter((f) => f.registro.numeroReporte);
+  conNumero.forEach((f, i) => {
+    const n = f.registro.numeroReporte!;
+    const vecinos = [conNumero[i - 1], conNumero[i + 1]]
+      .filter(Boolean)
+      .map((v) => v!.registro.numeroReporte!);
+    if (vecinos.length && vecinos.every((v) => Math.abs(v - n) > 50)) {
+      f.advertencias.push(
+        `El reporte ${n} parece fuera de secuencia (vecinos: ${vecinos.join(' y ')}). Revise si está bien escrito.`,
+      );
+    }
+  });
+
   /* --- 4. Continuidad de los reportes --- */
-  const numeros = [...reportesDelArchivo.keys()].sort((a, b) => a - b);
+  // Un número aislado (a más de 50 de sus vecinos) es casi seguro un error
+  // de tecleo; contarlo estiraba el rango y anunciaba mil huecos falsos.
+  const todos = [...reportesDelArchivo.keys()].sort((a, b) => a - b);
+  const numeros = todos.filter((n, i) => {
+    const vecinos = [todos[i - 1], todos[i + 1]].filter((v) => v !== undefined);
+    return !vecinos.length || vecinos.some((v) => Math.abs(v - n) <= 50);
+  });
   const reportesFaltantes: number[] = [];
 
   if (numeros.length > 1) {
@@ -685,7 +734,42 @@ export async function leerExcel(
     reporteMin: numeros[0],
     reporteMax: numeros[numeros.length - 1],
     reportesFaltantes,
+    anulados,
   };
+}
+
+/** Lo que en el seguimiento significa "no tiene" (N, N/T, NN, X…), ya sin signos. */
+const SIN_DATO = new Set([
+  'N', 'NN', 'NNN', 'NT', 'MT', 'NA', 'SN', 'SS', 'X', 'XX', 'NO', 'NOTIENE',
+  'SINSERIE', 'SININVENTARIO', 'ILEGIBLE', 'NOAPLICA', 'NINGUNO', '0', '00', '000',
+]);
+
+function soloLetras(valor: string): string {
+  return valor.toUpperCase().replace(/[^A-Z0-9Ñ]/g, '');
+}
+
+/**
+ * Serie o inventario, o '' si lo escrito significa "no tiene". Debe
+ * coincidir con RegistroSyncService::identificador del servidor: tomados
+ * como identificador real, todos los equipos "N/T" eran uno solo.
+ */
+function identificador(valor: string): string {
+  const letras = soloLetras(valor);
+  if (!letras || letras.length === 1 || SIN_DATO.has(letras) || letras === '15320000') return '';
+  return valor;
+}
+
+/**
+ * ¿La fila es un reporte anulado? En el seguimiento se escribe ANULADO a
+ * lo ancho, una letra por celda (A | N | U | L | A | D | O), o entero en
+ * una sola. Solo cuentan las celdas cortas: una descripción que mencione la
+ * palabra no anula la fila.
+ */
+function esAnulado(fila: any[]): boolean {
+  const celdas = fila.map((c) => String(c ?? '').trim().toUpperCase());
+  if (celdas.some((c) => c === 'ANULADO' || c === 'ANULADA')) return true;
+  const letras = celdas.filter((c) => c.length === 1).join('');
+  return letras.includes('ANULAD');
 }
 
 /* ------------------------------------------------------------------ */
