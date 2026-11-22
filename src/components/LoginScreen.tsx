@@ -289,6 +289,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <Info className="mt-0.5 size-4 shrink-0" />
           Si no le llega el código, revise la carpeta de spam o entre con su contraseña.
         </p>
+
+        <p className="mt-8 text-center text-xs text-slate-500">© 2026 Stonemills</p>
       </div>
     </div>
   );

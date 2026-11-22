@@ -157,6 +157,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <button type="button" onClick={onLogout} className="btn w-full border-2 border-rose-200 text-rose-700 hover:bg-rose-50">
           <LogOut className="size-4" /> Cerrar sesión
         </button>
+
+        <p className="text-center text-xs text-slate-500">© 2026 Stonemills</p>
       </section>
     </Sheet>
   );
