@@ -218,6 +218,28 @@ export const api = {
     return r.usuario;
   },
 
+  /** Pide un código de 6 dígitos por correo. Devuelve el mensaje del servidor. */
+  async pedirCodigo(email: string): Promise<string> {
+    const r = await request<{ mensaje: string }>(
+      '/auth/codigo',
+      { method: 'POST', body: JSON.stringify({ email }) },
+      20000,
+    );
+    return r.mensaje;
+  },
+
+  /** Cambia el código recibido por una sesión, igual que el login con contraseña. */
+  async entrarConCodigo(email: string, codigo: string): Promise<PerfilUsuario> {
+    const r = await request<{ token: string; usuario: PerfilUsuario }>(
+      '/auth/codigo/verificar',
+      { method: 'POST', body: JSON.stringify({ email, codigo }) },
+      15000,
+    );
+
+    sesion.guardar(r.token);
+    return r.usuario;
+  },
+
   async cerrarSesion(): Promise<void> {
     try {
       await request('/auth/logout', { method: 'POST' }, 8000);

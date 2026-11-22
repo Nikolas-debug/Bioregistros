@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Trash2, Pencil, ShieldCheck } from 'lucide-react';
+import { Download, Trash2, Pencil } from 'lucide-react';
 import { EstadoBadge, Sheet } from './ui';
 import { MaintenanceRecord, etiquetaClases, etiquetaReporte, fechaCorta } from '../types';
 import { exportSingleRecordToExcel } from '../utils/excelExport';
@@ -111,7 +111,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({
       </div>
 
       {/* Firma técnica */}
-      <div className="mt-6 flex items-center justify-between gap-3 border-t border-slate-200 pt-5">
+      <div className="mt-6 flex items-center gap-3 border-t border-slate-200 pt-5">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
             {iniciales}
@@ -121,9 +121,6 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({
             <span className="block text-[13px] text-slate-500">Técnico responsable</span>
           </span>
         </div>
-        <span className="badge badge-ok">
-          <ShieldCheck className="size-3.5" /> Verificado
-        </span>
       </div>
 
       {/* Eliminar */}

@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::post('auth/login', [AuthController::class, 'login']);
+Route::post('auth/codigo', [AuthController::class, 'pedirCodigo']);
+Route::post('auth/codigo/verificar', [AuthController::class, 'verificarCodigo']);
 Route::get('sync/ping', [SyncController::class, 'ping']);
 
 Route::middleware('token')->group(function () {
