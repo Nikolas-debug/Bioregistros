@@ -6,6 +6,12 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    // Tailwind 4 define la paleta en oklch(); Chrome < 111 y Samsung Internet
+    // viejo (p. ej. Galaxy A03) la descartan y no se ve ningun color.
+    // Lightning CSS agrega el respaldo en rgb para Chrome 99+ y Samsung Internet 18+
+    // (minimo por @layer).
+    css: {lightningcss: {targets: {chrome: 99 << 16, samsung: 18 << 16}}},
+    build: {cssMinify: 'lightningcss' as const},
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
